@@ -23,9 +23,7 @@ var jwt = jwtSection.Get<JwtSettings>() ?? new JwtSettings();
 if (string.IsNullOrWhiteSpace(jwt.Key) || jwt.Key.Length < 32)
     throw new InvalidOperationException(
         "Thiếu Jwt:Key (tối thiểu 32 ký tự). Hãy chạy lệnh dotnet user-secrets set ở bước 2.3.2.");
-
 builder.Services.Configure<JwtSettings>(jwtSection);
-
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -49,8 +47,12 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ---- Services ----
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ISpecialtyService, SpecialtyService>();
+builder.Services.AddScoped<IDoctorService, DoctorService>();
+builder.Services.AddScoped<IScheduleService, ScheduleService>();
 
 // ---- CORS cho Blazor ----
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
@@ -103,9 +105,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
 app.UseCors("BlazorClient");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
