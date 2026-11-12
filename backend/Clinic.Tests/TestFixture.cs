@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Clinic.Tests;
 
-// Đồng hồ giả: cho phép test "đặt" thời điểm hiện tại
+// Đồng hồ giả: cho phép test "đặt" và "tua" thời gian
 public class FakeClock : TimeProvider
 {
     private DateTimeOffset _utcNow;
@@ -16,6 +16,8 @@ public class FakeClock : TimeProvider
     }
 
     public override DateTimeOffset GetUtcNow() => _utcNow;
+
+    public void Advance(TimeSpan span) => _utcNow += span;
 }
 
 public static class TestDates
@@ -30,14 +32,21 @@ public static class TestDates
 public sealed class TestFixture : IDisposable
 {
     public ClinicDbContext Db { get; }
+    public FakeClock Clock { get; }
     public AppointmentService Appointments { get; }
+    public ExaminationService Examinations { get; }
 
     public int DoctorId { get; private set; }
+    public int DoctorUserId { get; private set; }
+    public int Doctor2UserId { get; private set; }
     public int PatientAUserId { get; private set; }
     public int PatientAId { get; private set; }
     public int PatientBUserId { get; private set; }
     public int PatientBId { get; private set; }
     public int ReceptionistUserId { get; private set; }
+    public int Medicine1Id { get; private set; }
+    public int Medicine2Id { get; private set; }
+    public int InactiveMedicineId { get; private set; }
 
     public TestFixture()
     {
@@ -48,8 +57,9 @@ public sealed class TestFixture : IDisposable
         Db = new ClinicDbContext(options);
         Db.Database.EnsureCreated(); // áp dụng cả dữ liệu mẫu Roles, Specialties
 
-        var clock = new FakeClock(TestDates.NowUtc);
-        Appointments = new AppointmentService(Db, new ScheduleService(Db, clock), clock);
+        Clock = new FakeClock(TestDates.NowUtc);
+        Appointments = new AppointmentService(Db, new ScheduleService(Db, Clock), Clock);
+        Examinations = new ExaminationService(Db, Clock);
 
         Seed();
     }
@@ -87,15 +97,32 @@ public sealed class TestFixture : IDisposable
             });
         }
 
-        Db.AddRange(patientA, patientB, receptionist, doctor);
+        // Bác sĩ thứ hai: dùng để kiểm tra "bác sĩ khác không được động vào"
+        var doctor2 = new Doctor
+        {
+            User = NewUser("bs2@test.com", "BS. Khác", 3),
+            SpecialtyId = 2,
+            ConsultationFee = 250000
+        };
+
+        var med1 = new Medicine { Name = "Paracetamol 500mg", Unit = "viên", Price = 1500 };
+        var med2 = new Medicine { Name = "Cetirizine 10mg", Unit = "viên", Price = 2000 };
+        var medOff = new Medicine { Name = "Thuốc ngừng bán", Unit = "viên", Price = 1000, IsActive = false };
+
+        Db.AddRange(patientA, patientB, receptionist, doctor, doctor2, med1, med2, medOff);
         Db.SaveChanges();
 
         DoctorId = doctor.Id;
+        DoctorUserId = doctor.UserId;
+        Doctor2UserId = doctor2.UserId;
         PatientAId = patientA.Id;
         PatientAUserId = patientA.UserId;
         PatientBId = patientB.Id;
         PatientBUserId = patientB.UserId;
         ReceptionistUserId = receptionist.Id;
+        Medicine1Id = med1.Id;
+        Medicine2Id = med2.Id;
+        InactiveMedicineId = medOff.Id;
     }
 
     public void Dispose() => Db.Dispose();

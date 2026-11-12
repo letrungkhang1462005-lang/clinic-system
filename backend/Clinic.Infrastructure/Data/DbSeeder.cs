@@ -14,6 +14,9 @@ public static class DbSeeder
         await EnsureDoctorAsync(db, "bs.an@clinic.local", "BS. Nguyễn Văn An", 1, "Thạc sĩ, Bác sĩ", 10, 200000);
         await EnsureDoctorAsync(db, "bs.binh@clinic.local", "BS. Trần Thị Bình", 2, "Bác sĩ chuyên khoa I", 8, 250000);
         await EnsureDoctorAsync(db, "bs.cuong@clinic.local", "BS. Lê Minh Cường", 3, "Tiến sĩ, Bác sĩ", 15, 300000);
+
+        // Thêm dữ liệu mẫu thuốc và dịch vụ
+        await EnsureCatalogAsync(db);
     }
 
     private static async Task EnsureUserAsync(
@@ -79,6 +82,36 @@ public static class DbSeeder
         }
 
         db.Doctors.Add(doctor);
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureCatalogAsync(ClinicDbContext db)
+    {
+        // Dữ liệu mẫu để demo, giá chỉ mang tính minh họa
+        if (!await db.Medicines.AnyAsync())
+        {
+            db.Medicines.AddRange(
+                new Medicine { Name = "Paracetamol 500mg", Unit = "viên", Price = 1500 },
+                new Medicine { Name = "Amoxicillin 500mg", Unit = "viên", Price = 3000 },
+                new Medicine { Name = "Cetirizine 10mg", Unit = "viên", Price = 2000 },
+                new Medicine { Name = "Omeprazole 20mg", Unit = "viên", Price = 2500 },
+                new Medicine { Name = "Loratadin 10mg", Unit = "viên", Price = 1800 },
+                new Medicine { Name = "Ibuprofen 400mg", Unit = "viên", Price = 2200 },
+                new Medicine { Name = "Vitamin C 500mg", Unit = "viên", Price = 1000 },
+                new Medicine { Name = "Natri clorid 0,9%", Unit = "chai", Price = 8000 }
+            );
+        }
+
+        if (!await db.Services.AnyAsync())
+        {
+            db.Services.AddRange(
+                new Service { Name = "Xét nghiệm máu tổng quát", Price = 150000 },
+                new Service { Name = "Siêu âm ổ bụng", Price = 200000 },
+                new Service { Name = "Điện tâm đồ (ECG)", Price = 120000 },
+                new Service { Name = "X-quang ngực thẳng", Price = 180000 }
+            );
+        }
+
         await db.SaveChangesAsync();
     }
 }
