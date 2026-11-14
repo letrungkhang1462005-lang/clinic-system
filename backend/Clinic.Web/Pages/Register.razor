@@ -1,0 +1,82 @@
+﻿@page "/register"
+@using System.ComponentModel.DataAnnotations
+@inject ApiClient Api
+@inject JwtAuthStateProvider Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Đăng ký</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Class="pa-6" Elevation="3">
+        <MudText Typo="Typo.h5" Class="mb-4">Đăng ký tài khoản bệnh nhân</MudText>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.FullName" For="@(() => _form.FullName)"
+                          Label="Họ và tên" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Email" For="@(() => _form.Email)"
+                          Label="Email" Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Phone" For="@(() => _form.Phone)"
+                          Label="Số điện thoại" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Password" For="@(() => _form.Password)"
+                          Label="Mật khẩu (tối thiểu 6 ký tự)" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" />
+            <MudTextField @bind-Value="_form.ConfirmPassword" For="@(() => _form.ConfirmPassword)"
+                          Label="Nhập lại mật khẩu" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-4" />
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                       FullWidth="true" Disabled="_busy">
+                @(_busy ? "Đang xử lý..." : "Đăng ký")
+            </MudButton>
+        </EditForm>
+
+        <MudText Typo="Typo.body2" Class="mt-4">
+            Đã có tài khoản? <MudLink Href="login">Đăng nhập</MudLink>
+        </MudText>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    // Mở rộng DTO dùng chung, thêm ô "nhập lại mật khẩu" chỉ tồn tại ở giao diện
+    private class RegisterForm : RegisterRequest
+    {
+        [Required(ErrorMessage = "Vui lòng nhập lại mật khẩu.")]
+        [Compare(nameof(Password), ErrorMessage = "Mật khẩu nhập lại không khớp.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    private readonly RegisterForm _form = new();
+    private bool _busy;
+    private string? _error;
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        // Chỉ gửi những trường API cần, không gửi ConfirmPassword
+        var request = new RegisterRequest
+        {
+            FullName = _form.FullName,
+            Email = _form.Email,
+            Phone = string.IsNullOrWhiteSpace(_form.Phone) ? null : _form.Phone,
+            Password = _form.Password
+        };
+
+        var result = await Api.PostAsync<AuthResponse>("api/auth/register", request);
+        if (result.Success && result.Data is not null)
+        {
+            await Auth.SignInAsync(result.Data); // đăng ký xong đăng nhập luôn
+            Navigation.NavigateTo("");
+        }
+        else
+        {
+            _error = result.Error;
+        }
+
+        _busy = false;
+    }
+}

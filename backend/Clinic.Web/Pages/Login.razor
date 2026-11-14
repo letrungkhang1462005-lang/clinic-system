@@ -1,0 +1,94 @@
+﻿@page "/login"
+@inject ApiClient Api
+@inject JwtAuthStateProvider Auth
+@inject NavigationManager Navigation
+@inject IWebAssemblyHostEnvironment Env
+
+<PageTitle>Đăng nhập</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Class="pa-6" Elevation="3">
+        <MudText Typo="Typo.h5" Class="mb-4">Đăng nhập</MudText>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_model.Email" For="@(() => _model.Email)"
+                          Label="Email" Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" />
+            <MudTextField @bind-Value="_model.Password" For="@(() => _model.Password)"
+                          Label="Mật khẩu" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-4" />
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                       FullWidth="true" Disabled="_busy">
+                @(_busy ? "Đang đăng nhập..." : "Đăng nhập")
+            </MudButton>
+        </EditForm>
+
+        <MudText Typo="Typo.body2" Class="mt-4">
+            Chưa có tài khoản? <MudLink Href="register">Đăng ký</MudLink>
+        </MudText>
+    </MudPaper>
+
+    @if (Env.IsDevelopment())
+    {
+        <MudPaper Class="pa-4 mt-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Tài khoản demo (chỉ hiện khi đang phát triển)</MudText>
+            @foreach (var a in _demo)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="mr-2 mb-2"
+                           OnClick="() => Fill(a.Email, a.Password)">@a.Label</MudButton>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter, SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private readonly LoginRequest _model = new();
+    private bool _busy;
+    private string? _error;
+
+    private readonly (string Label, string Email, string Password)[] _demo =
+    {
+        ("Admin", "admin@clinic.local", "Admin@123"),
+        ("Lễ tân", "letan@clinic.local", "Letan@123"),
+        ("Bác sĩ An", "bs.an@clinic.local", "Doctor@123"),
+        ("Bệnh nhân bn1", "bn1@test.com", "123456")
+    };
+
+    private void Fill(string email, string password)
+    {
+        _model.Email = email;
+        _model.Password = password;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        var result = await Api.PostAsync<AuthResponse>("api/auth/login", _model);
+        if (result.Success && result.Data is not null)
+        {
+            await Auth.SignInAsync(result.Data);
+            Navigation.NavigateTo(SafeReturnUrl());
+        }
+        else
+        {
+            _error = result.Error;
+        }
+
+        _busy = false;
+    }
+
+    // Chỉ chấp nhận đường dẫn nội bộ, tránh bị lợi dụng chuyển hướng sang trang lạ (open redirect)
+    private string SafeReturnUrl() =>
+        string.IsNullOrEmpty(ReturnUrl) || ReturnUrl.Contains("://") || ReturnUrl.StartsWith("//")
+            ? ""
+            : ReturnUrl;
+}

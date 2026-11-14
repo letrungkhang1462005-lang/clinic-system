@@ -1,0 +1,110 @@
+﻿@page "/doctors"
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Bác sĩ</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Đội ngũ bác sĩ</MudText>
+
+<MudGrid Class="mb-2">
+    <MudItem xs="12" sm="4">
+        <MudSelect T="int?" Label="Chuyên khoa" Variant="Variant.Outlined"
+                   Value="_specialtyId" ValueChanged="OnSpecialtyChanged">
+            <MudSelectItem T="int?" Value="(int?)null">Tất cả chuyên khoa</MudSelectItem>
+            @foreach (var s in _specialties)
+            {
+                <MudSelectItem T="int?" Value="(int?)s.Id">@s.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="8" sm="6">
+        <MudTextField @bind-Value="_keyword" Immediate="true" OnKeyUp="OnKeyUp"
+                      Label="Tên bác sĩ" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="4" sm="2">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   Style="height:56px" OnClick="LoadDoctorsAsync">Tìm</MudButton>
+    </MudItem>
+</MudGrid>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else if (_doctors.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Class="mt-4">Không tìm thấy bác sĩ phù hợp.</MudAlert>
+}
+else
+{
+    <MudGrid Class="mt-2">
+        @foreach (var d in _doctors)
+        {
+            <MudItem xs="12" sm="6" md="4" @key="d.Id">
+                <MudCard Elevation="2" Style="height:100%">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@d.FullName</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-1">@d.SpecialtyName</MudChip>
+                        @if (!string.IsNullOrWhiteSpace(d.Degree))
+                        {
+                            <MudText Typo="Typo.body2" Class="mt-2">@d.Degree</MudText>
+                        }
+                        @if (d.ExperienceYears.HasValue)
+                        {
+                            <MudText Typo="Typo.body2">Kinh nghiệm: @d.ExperienceYears năm</MudText>
+                        }
+                        <MudText Typo="Typo.subtitle2" Class="mt-2">Phí khám: @UiFormat.Money(d.ConsultationFee)</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<SpecialtyDto> _specialties = new();
+    private List<DoctorDto> _doctors = new();
+    private int? _specialtyId;
+    private string? _keyword;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var specialties = await Api.GetAsync<List<SpecialtyDto>>("api/specialties");
+        if (specialties.Success)
+            _specialties = specialties.Data ?? new();
+        else
+            Snackbar.Add(specialties.Error, Severity.Error);
+
+        await LoadDoctorsAsync();
+    }
+
+    private async Task OnSpecialtyChanged(int? id)
+    {
+        _specialtyId = id;
+        await LoadDoctorsAsync();
+    }
+
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadDoctorsAsync();
+    }
+
+    private async Task LoadDoctorsAsync()
+    {
+        _loading = true;
+
+        var query = new List<string>();
+        if (_specialtyId.HasValue) query.Add($"specialtyId={_specialtyId}");
+        if (!string.IsNullOrWhiteSpace(_keyword)) query.Add($"keyword={Uri.EscapeDataString(_keyword.Trim())}");
+        var url = query.Count == 0 ? "api/doctors" : "api/doctors?" + string.Join("&", query);
+
+        var result = await Api.GetAsync<List<DoctorDto>>(url);
+        if (result.Success)
+            _doctors = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+}

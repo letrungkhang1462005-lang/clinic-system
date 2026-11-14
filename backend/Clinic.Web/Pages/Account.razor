@@ -1,0 +1,39 @@
+﻿@page "/account"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Tài khoản</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Tài khoản của tôi</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_me is not null)
+{
+    <MudPaper Class="pa-4" Style="max-width:480px">
+        <MudText><b>Họ tên:</b> @_me.FullName</MudText>
+        <MudText><b>Email:</b> @_me.Email</MudText>
+        <MudText><b>Vai trò:</b> @UiFormat.RoleLabel(_me.Role)</MudText>
+        <MudText Typo="Typo.caption" Class="mt-2">Mã người dùng: @_me.Id</MudText>
+    </MudPaper>
+}
+
+@code {
+    private UserInfo? _me;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Gọi API có bảo vệ: ApiClient tự gắn token vào header
+        var result = await Api.GetAsync<UserInfo>("api/auth/me");
+        if (result.Success)
+            _me = result.Data;
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+}

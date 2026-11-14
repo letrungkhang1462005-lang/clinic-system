@@ -1,7 +1,20 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Trang chủ</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+<AuthorizeView>
+    <Authorized>
+        <MudText Typo="Typo.h4" Class="mb-2">Xin chào, @context.User.FindFirst("name")?.Value</MudText>
+        <MudText Class="mb-4">Vai trò của bạn: <b>@UiFormat.RoleLabel(context.User.FindFirst("role")?.Value)</b></MudText>
+        <MudAlert Severity="Severity.Info">Các chức năng dành cho vai trò này sẽ được bổ sung ở các bước tiếp theo.</MudAlert>
+    </Authorized>
+    <NotAuthorized>
+        <MudPaper Class="pa-8 text-center" Elevation="0">
+            <MudText Typo="Typo.h3" Class="mb-2">Phòng khám Clinic</MudText>
+            <MudText Typo="Typo.h6" Class="mb-6">Đặt lịch khám nhanh chóng, theo dõi hồ sơ và hóa đơn mọi lúc.</MudText>
+            <MudButton Href="login" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2">Đăng nhập</MudButton>
+            <MudButton Href="register" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2">Đăng ký</MudButton>
+            <MudButton Href="doctors" Variant="Variant.Text" Color="Color.Primary" Size="Size.Large">Xem bác sĩ</MudButton>
+        </MudPaper>
+    </NotAuthorized>
+</AuthorizeView>
