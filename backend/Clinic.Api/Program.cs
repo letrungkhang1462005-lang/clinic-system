@@ -57,6 +57,9 @@ builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<IMedicineService, MedicineService>();
 builder.Services.AddScoped<IServiceItemService, ServiceItemService>();
 builder.Services.AddScoped<IExaminationService, ExaminationService>();
+builder.Services.AddScoped<IPatientService, PatientService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // ---- CORS cho Blazor ----
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();

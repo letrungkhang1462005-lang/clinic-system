@@ -35,6 +35,9 @@ public sealed class TestFixture : IDisposable
     public FakeClock Clock { get; }
     public AppointmentService Appointments { get; }
     public ExaminationService Examinations { get; }
+    public PatientService Patients { get; }
+    public InvoiceService Invoices { get; }
+    public DashboardService Dashboard { get; }
 
     public int DoctorId { get; private set; }
     public int DoctorUserId { get; private set; }
@@ -47,6 +50,8 @@ public sealed class TestFixture : IDisposable
     public int Medicine1Id { get; private set; }
     public int Medicine2Id { get; private set; }
     public int InactiveMedicineId { get; private set; }
+    public int Service1Id { get; private set; }
+    public int InactiveServiceId { get; private set; }
 
     public TestFixture()
     {
@@ -60,6 +65,9 @@ public sealed class TestFixture : IDisposable
         Clock = new FakeClock(TestDates.NowUtc);
         Appointments = new AppointmentService(Db, new ScheduleService(Db, Clock), Clock);
         Examinations = new ExaminationService(Db, Clock);
+        Patients = new PatientService(Db, Clock);
+        Invoices = new InvoiceService(Db, Clock);
+        Dashboard = new DashboardService(Db, Clock);
 
         Seed();
     }
@@ -108,8 +116,10 @@ public sealed class TestFixture : IDisposable
         var med1 = new Medicine { Name = "Paracetamol 500mg", Unit = "viên", Price = 1500 };
         var med2 = new Medicine { Name = "Cetirizine 10mg", Unit = "viên", Price = 2000 };
         var medOff = new Medicine { Name = "Thuốc ngừng bán", Unit = "viên", Price = 1000, IsActive = false };
+        var svc1 = new Service { Name = "Xét nghiệm máu", Price = 150000 };
+        var svcOff = new Service { Name = "Dịch vụ ngừng", Price = 100000, IsActive = false };
 
-        Db.AddRange(patientA, patientB, receptionist, doctor, doctor2, med1, med2, medOff);
+        Db.AddRange(patientA, patientB, receptionist, doctor, doctor2, med1, med2, medOff, svc1, svcOff);
         Db.SaveChanges();
 
         DoctorId = doctor.Id;
@@ -123,6 +133,8 @@ public sealed class TestFixture : IDisposable
         Medicine1Id = med1.Id;
         Medicine2Id = med2.Id;
         InactiveMedicineId = medOff.Id;
+        Service1Id = svc1.Id;
+        InactiveServiceId = svcOff.Id;
     }
 
     public void Dispose() => Db.Dispose();
