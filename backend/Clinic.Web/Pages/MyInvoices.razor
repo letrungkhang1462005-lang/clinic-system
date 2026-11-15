@@ -1,0 +1,70 @@
+﻿@page "/my-invoices"
+@attribute [Authorize(Roles = RoleNames.Patient)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Hóa đơn</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Hóa đơn của tôi</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_items.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Bạn chưa có hóa đơn nào.</MudAlert>
+}
+else
+{
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var inv in _items)
+        {
+            <MudExpansionPanel Text="@($"Hóa đơn #{inv.Id} · {UiFormat.Date(inv.AppointmentDate)} · {UiFormat.Money(inv.TotalAmount)} · {UiFormat.InvoiceStatusLabel(inv.Status)}")">
+                <MudText Typo="Typo.body2">Bác sĩ: <b>@inv.DoctorName</b></MudText>
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    <MudChip T="string" Size="Size.Small" Color="@UiFormat.InvoiceStatusColor(inv.Status)">@UiFormat.InvoiceStatusLabel(inv.Status)</MudChip>
+                    @if (inv.Status == InvoiceStatus.Paid && inv.PaidAt.HasValue)
+                    {
+                        <span class="ml-2">Thanh toán lúc @UiFormat.DateTimeVn(inv.PaidAt.Value) (@UiFormat.PaymentLabel(inv.PaymentMethod))</span>
+                    }
+                </MudText>
+
+                <MudTable Items="inv.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Loại</MudTh>
+                        <MudTh>Nội dung</MudTh>
+                        <MudTh>Số lượng</MudTh>
+                        <MudTh>Đơn giá</MudTh>
+                        <MudTh>Thành tiền</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Loại">@UiFormat.ItemTypeLabel(item.ItemType)</MudTd>
+                        <MudTd DataLabel="Nội dung">@item.Description</MudTd>
+                        <MudTd DataLabel="Số lượng">@item.Quantity</MudTd>
+                        <MudTd DataLabel="Đơn giá">@UiFormat.Money(item.UnitPrice)</MudTd>
+                        <MudTd DataLabel="Thành tiền">@UiFormat.Money(item.LineTotal)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudText Typo="Typo.h6" Class="mt-3">Tổng cộng: @UiFormat.Money(inv.TotalAmount)</MudText>
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+}
+
+@code {
+    private List<InvoiceDto> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetAsync<List<InvoiceDto>>("api/invoices/my");
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+}

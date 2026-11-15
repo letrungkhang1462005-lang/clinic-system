@@ -1,7 +1,15 @@
 ﻿<MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Trang chủ</MudNavLink>
     <MudNavLink Href="doctors" Icon="@Icons.Material.Filled.MedicalServices">Bác sĩ</MudNavLink>
-    <MudNavLink Href="account" Icon="@Icons.Material.Filled.Person">Tài khoản</MudNavLink>
 
-    @* Các mục theo vai trò (Đặt lịch, Lịch hẹn, Hóa đơn, Dashboard...) sẽ được thêm vào đây ở phần 5B, 5C, 5D *@
+    <AuthorizeView Roles="@RoleNames.Patient">
+        <MudNavLink Href="book" Icon="@Icons.Material.Filled.EventAvailable">Đặt lịch khám</MudNavLink>
+        <MudNavLink Href="my-appointments" Icon="@Icons.Material.Filled.CalendarMonth">Lịch hẹn của tôi</MudNavLink>
+        <MudNavLink Href="my-history" Icon="@Icons.Material.Filled.History">Lịch sử khám</MudNavLink>
+        <MudNavLink Href="my-invoices" Icon="@Icons.Material.Filled.Receipt">Hóa đơn</MudNavLink>
+    </AuthorizeView>
+
+    @* Mục của Lễ tân, Bác sĩ, Admin sẽ được thêm ở các phần 5C và 5D *@
+
+    <MudNavLink Href="account" Icon="@Icons.Material.Filled.Person">Tài khoản</MudNavLink>
 </MudNavMenu>

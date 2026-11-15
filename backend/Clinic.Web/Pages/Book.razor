@@ -1,0 +1,247 @@
+﻿@page "/book"
+@attribute [Authorize(Roles = RoleNames.Patient)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+
+<PageTitle>Đặt lịch khám</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Đặt lịch khám</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">1. Chọn bác sĩ và ngày khám</MudText>
+
+            <MudSelect T="int?" Label="Chuyên khoa" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_specialtyId" ValueChanged="OnSpecialtyChanged">
+                <MudSelectItem T="int?" Value="(int?)null">Tất cả chuyên khoa</MudSelectItem>
+                @foreach (var s in _specialties)
+                {
+                    <MudSelectItem T="int?" Value="(int?)s.Id">@s.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="int?" Label="Bác sĩ" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_doctorId" ValueChanged="OnDoctorChanged">
+                @foreach (var d in VisibleDoctors)
+                {
+                    <MudSelectItem T="int?" Value="(int?)d.Id">@d.FullName (@d.SpecialtyName)</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudDatePicker Label="Ngày khám" Variant="Variant.Outlined" Class="mb-3"
+                           Date="_date" DateChanged="OnDateChanged"
+                           MinDate="@TodayVn" MaxDate="@TodayVn.AddDays(90)"
+                           DateFormat="dd/MM/yyyy" Editable="false" />
+
+            @if (CurrentDoctor is { } doctor)
+            {
+                <MudText Typo="Typo.body2">Phí khám: <b>@UiFormat.Money(doctor.ConsultationFee)</b></MudText>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">2. Chọn khung giờ</MudText>
+
+            @if (_loadingSlots)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (_doctorId is null || _date is null)
+            {
+                <MudAlert Severity="Severity.Info">Hãy chọn bác sĩ và ngày khám để xem khung giờ trống.</MudAlert>
+            }
+            else if (_slotsLoaded && _slots.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning">Bác sĩ không có lịch làm việc vào ngày này. Hãy chọn ngày khác.</MudAlert>
+            }
+            else
+            {
+                @foreach (var group in _slots.GroupBy(s => s.StartTime.Hour < 12 ? "Buổi sáng" : "Buổi chiều"))
+                {
+                    <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1">@group.Key</MudText>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var item in group)
+                        {
+                            var slot = item;
+                            <MudButton Size="Size.Small" Color="Color.Primary"
+                                       Variant="@(IsSelected(slot) ? Variant.Filled : Variant.Outlined)"
+                                       Disabled="!slot.IsAvailable"
+                                       OnClick="() => _selected = slot">
+                                @UiFormat.Time(slot.StartTime)
+                            </MudButton>
+                        }
+                    </div>
+                }
+
+                @if (_slots.Count > 0)
+                {
+                    <MudText Typo="Typo.caption" Class="mt-3 d-block">Khung giờ bị mờ là đã có người đặt hoặc đã qua.</MudText>
+                }
+            }
+        </MudPaper>
+
+        @if (_selected is not null && CurrentDoctor is { } picked && _date.HasValue)
+        {
+            <MudPaper Class="pa-4 mt-4">
+                <MudText Typo="Typo.h6" Class="mb-3">3. Xác nhận</MudText>
+                <MudText>
+                    <b>@picked.FullName</b> · @UiFormat.Date(DateOnly.FromDateTime(_date.Value)) ·
+                    @UiFormat.Time(_selected.StartTime) - @UiFormat.Time(_selected.EndTime)
+                </MudText>
+                <MudTextField @bind-Value="_reason" Label="Lý do khám (không bắt buộc)" Variant="Variant.Outlined"
+                              Lines="3" MaxLength="500" Class="mt-3 mb-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="BookAsync">
+                    @(_busy ? "Đang đặt lịch..." : "Đặt lịch")
+                </MudButton>
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter, SupplyParameterFromQuery(Name = "doctorId")]
+    public int? PreselectDoctorId { get; set; }
+
+    private List<SpecialtyDto> _specialties = new();
+    private List<DoctorDto> _allDoctors = new();
+    private List<SlotDto> _slots = new();
+
+    private int? _specialtyId;
+    private int? _doctorId;
+    private DateTime? _date;
+    private string? _reason;
+    private SlotDto? _selected;
+
+    private bool _loadingSlots;
+    private bool _slotsLoaded;
+    private bool _busy;
+
+    // Tính "hôm nay" theo giờ Việt Nam, không phụ thuộc múi giờ của trình duyệt
+    private static DateTime TodayVn => DateTime.UtcNow.AddHours(7).Date;
+
+    private IEnumerable<DoctorDto> VisibleDoctors =>
+        _specialtyId is null ? _allDoctors : _allDoctors.Where(d => d.SpecialtyId == _specialtyId);
+
+    private DoctorDto? CurrentDoctor => _allDoctors.FirstOrDefault(d => d.Id == _doctorId);
+
+    private bool IsSelected(SlotDto slot) => _selected is not null && _selected.StartTime == slot.StartTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var specialties = await Api.GetAsync<List<SpecialtyDto>>("api/specialties");
+        var doctors = await Api.GetAsync<List<DoctorDto>>("api/doctors");
+
+        if (specialties.Success) _specialties = specialties.Data ?? new();
+        if (doctors.Success) _allDoctors = doctors.Data ?? new();
+        else Snackbar.Add(doctors.Error, Severity.Error);
+
+        // Đến từ nút "Đặt lịch" ở trang Bác sĩ
+        if (PreselectDoctorId is { } id && _allDoctors.FirstOrDefault(d => d.Id == id) is { } pre)
+        {
+            _doctorId = pre.Id;
+            _specialtyId = pre.SpecialtyId;
+        }
+    }
+
+    private void OnSpecialtyChanged(int? id)
+    {
+        _specialtyId = id;
+
+        // Đổi chuyên khoa mà bác sĩ đang chọn không thuộc chuyên khoa đó thì bỏ chọn
+        if (id is not null && CurrentDoctor is { } d && d.SpecialtyId != id)
+        {
+            _doctorId = null;
+            ResetSlots();
+        }
+    }
+
+    private async Task OnDoctorChanged(int? id)
+    {
+        _doctorId = id;
+        await LoadSlotsAsync();
+    }
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _date = date;
+        await LoadSlotsAsync();
+    }
+
+    private void ResetSlots()
+    {
+        _slots = new();
+        _selected = null;
+        _slotsLoaded = false;
+    }
+
+    private async Task LoadSlotsAsync()
+    {
+        ResetSlots();
+        if (_doctorId is null || _date is null) return;
+
+        _loadingSlots = true;
+        var date = _date.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var result = await Api.GetAsync<List<SlotDto>>($"api/doctors/{_doctorId}/slots?date={date}");
+
+        if (result.Success)
+        {
+            _slots = result.Data ?? new();
+            _slotsLoaded = true;
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+
+        _loadingSlots = false;
+    }
+
+    private async Task BookAsync()
+    {
+        if (CurrentDoctor is not { } doctor || _date is null || _selected is null) return;
+
+        var date = DateOnly.FromDateTime(_date.Value);
+        string Enc(string? text) => System.Net.WebUtility.HtmlEncode(text ?? string.Empty);
+        var message = new MarkupString(
+            $"<b>Bác sĩ:</b> {Enc(doctor.FullName)}<br/>" +
+            $"<b>Chuyên khoa:</b> {Enc(doctor.SpecialtyName)}<br/>" +
+            $"<b>Ngày:</b> {UiFormat.Date(date)}<br/>" +
+            $"<b>Giờ:</b> {UiFormat.Time(_selected.StartTime)}<br/>" +
+            $"<b>Phí khám:</b> {UiFormat.Money(doctor.ConsultationFee)}");
+
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Xác nhận đặt lịch", message, yesText: "Đặt lịch", cancelText: "Xem lại");
+        if (confirmed != true) return;
+
+        _busy = true;
+
+        var request = new CreateAppointmentRequest
+        {
+            DoctorId = doctor.Id,
+            Date = date,
+            StartTime = _selected.StartTime,
+            Reason = string.IsNullOrWhiteSpace(_reason) ? null : _reason.Trim()
+        };
+
+        var result = await Api.PostAsync<AppointmentDto>("api/appointments", request);
+        if (result.Success)
+        {
+            Snackbar.Add("Đặt lịch thành công. Lịch hẹn đang chờ lễ tân xác nhận.", Severity.Success);
+            Navigation.NavigateTo("my-appointments");
+            return;
+        }
+
+        Snackbar.Add(result.Error, Severity.Error);
+
+        // Có người vừa đặt trước: tải lại để lưới giờ phản ánh đúng thực tế
+        if (result.Status == 409) await LoadSlotsAsync();
+
+        _busy = false;
+    }
+}

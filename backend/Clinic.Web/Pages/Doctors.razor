@@ -55,6 +55,9 @@ else
                         }
                         <MudText Typo="Typo.subtitle2" Class="mt-2">Phí khám: @UiFormat.Money(d.ConsultationFee)</MudText>
                     </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Href="@($"book?doctorId={d.Id}")" Variant="Variant.Text" Color="Color.Primary">Đặt lịch</MudButton>
+                    </MudCardActions>
                 </MudCard>
             </MudItem>
         }

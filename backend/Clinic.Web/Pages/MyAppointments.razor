@@ -1,0 +1,106 @@
+﻿@page "/my-appointments"
+@attribute [Authorize(Roles = RoleNames.Patient)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Lịch hẹn của tôi</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Lịch hẹn của tôi</MudText>
+    <MudSpacer />
+    <MudButton Href="book" Variant="Variant.Filled" Color="Color.Primary">Đặt lịch mới</MudButton>
+</div>
+
+<MudSelect T="AppointmentStatus?" Label="Lọc theo trạng thái" Variant="Variant.Outlined"
+           @bind-Value="_filter" Style="max-width:280px" Class="mb-4">
+    <MudSelectItem T="AppointmentStatus?" Value="(AppointmentStatus?)null">Tất cả</MudSelectItem>
+    @foreach (var s in Enum.GetValues<AppointmentStatus>())
+    {
+        <MudSelectItem T="AppointmentStatus?" Value="(AppointmentStatus?)s">@UiFormat.StatusLabel(s)</MudSelectItem>
+    }
+</MudSelect>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="@Filtered" Hover="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Ngày</MudTh>
+            <MudTh>Giờ</MudTh>
+            <MudTh>Bác sĩ</MudTh>
+            <MudTh>Chuyên khoa</MudTh>
+            <MudTh>Trạng thái</MudTh>
+            <MudTh>STT</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="a">
+            <MudTd DataLabel="Ngày">@UiFormat.Date(a.Date)</MudTd>
+            <MudTd DataLabel="Giờ">@UiFormat.Time(a.StartTime) - @UiFormat.Time(a.EndTime)</MudTd>
+            <MudTd DataLabel="Bác sĩ">@a.DoctorName</MudTd>
+            <MudTd DataLabel="Chuyên khoa">@a.SpecialtyName</MudTd>
+            <MudTd DataLabel="Trạng thái">
+                <MudChip T="string" Size="Size.Small" Color="@UiFormat.StatusColor(a.Status)">@UiFormat.StatusLabel(a.Status)</MudChip>
+            </MudTd>
+            <MudTd DataLabel="STT">@(a.QueueNumber?.ToString() ?? "-")</MudTd>
+            <MudTd>
+                @if (a.Status is AppointmentStatus.Pending or AppointmentStatus.Confirmed)
+                {
+                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
+                               OnClick="() => CancelAsync(a)">Hủy lịch</MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4">Bạn chưa có lịch hẹn nào.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private List<AppointmentDto> _items = new();
+    private AppointmentStatus? _filter;
+    private bool _loading = true;
+
+    private IEnumerable<AppointmentDto> Filtered =>
+        _filter is null ? _items : _items.Where(a => a.Status == _filter);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetAsync<List<AppointmentDto>>("api/appointments/my");
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+
+    private async Task CancelAsync(AppointmentDto a)
+    {
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Hủy lịch hẹn",
+            $"Bạn chắc chắn muốn hủy lịch khám ngày {UiFormat.Date(a.Date)} lúc {UiFormat.Time(a.StartTime)} với {a.DoctorName}?",
+            yesText: "Hủy lịch", cancelText: "Giữ lịch");
+        if (confirmed != true) return;
+
+        var result = await Api.PutAsync<AppointmentDto>(
+            $"api/appointments/{a.Id}/cancel",
+            new CancelAppointmentRequest { Reason = "Bệnh nhân tự hủy" });
+
+        if (result.Success && result.Data is not null)
+        {
+            var index = _items.FindIndex(x => x.Id == a.Id);
+            if (index >= 0) _items[index] = result.Data;
+            Snackbar.Add("Đã hủy lịch hẹn.", Severity.Success);
+        }
+        else
+        {
+            // Ví dụ: "Chỉ được hủy lịch trước giờ hẹn ít nhất 2 giờ..."
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+}

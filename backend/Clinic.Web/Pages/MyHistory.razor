@@ -1,0 +1,80 @@
+﻿@page "/my-history"
+@attribute [Authorize(Roles = RoleNames.Patient)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Lịch sử khám</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Lịch sử khám bệnh</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_records.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Bạn chưa có lần khám nào được ghi nhận.</MudAlert>
+}
+else
+{
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var r in _records)
+        {
+            <MudExpansionPanel Text="@($"{UiFormat.Date(r.AppointmentDate)} · {r.DoctorName} · {r.Diagnosis}")">
+                <MudText><b>Triệu chứng:</b> @(string.IsNullOrWhiteSpace(r.Symptoms) ? "Không ghi nhận" : r.Symptoms)</MudText>
+                <MudText><b>Chẩn đoán:</b> @r.Diagnosis</MudText>
+                @if (!string.IsNullOrWhiteSpace(r.Notes))
+                {
+                    <MudText><b>Dặn dò:</b> @r.Notes</MudText>
+                }
+                @if (r.FollowUpDate.HasValue)
+                {
+                    <MudText><b>Ngày tái khám:</b> @UiFormat.Date(r.FollowUpDate.Value)</MudText>
+                }
+
+                @if (r.Prescription is { } rx)
+                {
+                    <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Đơn thuốc</MudText>
+                    @if (!string.IsNullOrWhiteSpace(rx.Note))
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-2">Ghi chú: @rx.Note</MudText>
+                    }
+                    <MudTable Items="rx.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Thuốc</MudTh>
+                            <MudTh>Số lượng</MudTh>
+                            <MudTh>Cách dùng</MudTh>
+                            <MudTh>Số ngày</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="item">
+                            <MudTd DataLabel="Thuốc">@item.MedicineName</MudTd>
+                            <MudTd DataLabel="Số lượng">@item.Quantity @item.Unit</MudTd>
+                            <MudTd DataLabel="Cách dùng">@item.Dosage</MudTd>
+                            <MudTd DataLabel="Số ngày">@item.DurationDays</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mt-3">Lần khám này không có đơn thuốc.</MudText>
+                }
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+}
+
+@code {
+    private List<MedicalRecordDto> _records = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetAsync<List<MedicalRecordDto>>("api/patients/me/history");
+        if (result.Success)
+            _records = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+}
