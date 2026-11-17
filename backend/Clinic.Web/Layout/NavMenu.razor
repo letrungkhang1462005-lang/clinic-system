@@ -9,7 +9,17 @@
         <MudNavLink Href="my-invoices" Icon="@Icons.Material.Filled.Receipt">Hóa đơn</MudNavLink>
     </AuthorizeView>
 
-    @* Mục của Lễ tân, Bác sĩ, Admin sẽ được thêm ở các phần 5C và 5D *@
+    <AuthorizeView Roles="@RoleNames.Receptionist">
+        <MudNavLink Href="reception/appointments" Icon="@Icons.Material.Filled.CalendarMonth">Lịch hẹn</MudNavLink>
+        <MudNavLink Href="reception/new-booking" Icon="@Icons.Material.Filled.PersonAdd">Đặt lịch hộ</MudNavLink>
+        <MudNavLink Href="reception/billing" Icon="@Icons.Material.Filled.Payments">Thanh toán</MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@RoleNames.Doctor">
+        <MudNavLink Href="doctor/appointments" @Icons.Material.Filled.MedicalServices">Lịch khám</MudNavLink>
+    </AuthorizeView>
+
+    @* Mục của Admin sẽ được thêm ở phần 5D *@
 
     <MudNavLink Href="account" Icon="@Icons.Material.Filled.Person">Tài khoản</MudNavLink>
 </MudNavMenu>

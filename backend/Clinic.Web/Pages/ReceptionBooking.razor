@@ -1,0 +1,347 @@
+﻿@page "/reception/new-booking"
+@attribute [Authorize(Roles = RoleNames.Receptionist)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+
+<PageTitle>Đặt lịch hộ</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Đặt lịch hộ bệnh nhân</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-3">1. Bệnh nhân</MudText>
+
+    @if (_patient is not null)
+    {
+        <div class="d-flex align-center">
+            <MudText><b>@_patient.FullName</b> · @(_patient.Phone ?? "chưa có số điện thoại")</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ClearPatient">Đổi bệnh nhân</MudButton>
+        </div>
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="8" sm="9">
+                <MudTextField @bind-Value="_keyword" Immediate="true" OnKeyUp="OnKeyUp"
+                              Label="Tên hoặc số điện thoại" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="4" sm="3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                           Style="height:56px" OnClick="SearchAsync">Tìm</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @if (_searched && _results.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-3">Không tìm thấy bệnh nhân. Bạn có thể tạo hồ sơ mới bên dưới.</MudAlert>
+        }
+        else if (_results.Count > 0)
+        {
+            <MudTable Items="_results" Dense="true" Hover="true" Class="mt-3" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Họ tên</MudTh>
+                    <MudTh>Điện thoại</MudTh>
+                    <MudTh>Tài khoản</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate Context="p">
+                    <MudTd DataLabel="Họ tên">@p.FullName</MudTd>
+                    <MudTd DataLabel="Điện thoại">@p.Phone</MudTd>
+                    <MudTd DataLabel="Tài khoản">@(p.HasAccount ? "Có" : "Khám trực tiếp")</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="() => SelectPatient(p)">Chọn</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+
+        <MudDivider Class="my-4" />
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => _showNew = !_showNew">
+            @(_showNew ? "Ẩn form tạo hồ sơ" : "Tạo hồ sơ bệnh nhân mới (khám trực tiếp)")
+        </MudButton>
+
+        @if (_showNew)
+        {
+            <EditForm Model="_newPatient" OnValidSubmit="CreatePatientAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Class="mt-1">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_newPatient.FullName" For="@(() => _newPatient.FullName)"
+                                      Label="Họ và tên" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_newPatient.Phone" For="@(() => _newPatient.Phone)"
+                                      Label="Số điện thoại" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="_newPatient.Gender" Label="Giới tính" Variant="Variant.Outlined">
+                            <MudSelectItem T="string" Value="@("Nam")">Nam</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Nữ")">Nữ</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Khác")">Khác</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_newPatient.Address" Label="Địa chỉ (không bắt buộc)" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                           Class="mt-3" Disabled="_creating">Tạo hồ sơ</MudButton>
+            </EditForm>
+        }
+    }
+</MudPaper>
+
+<MudGrid>
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">2. Bác sĩ và ngày khám</MudText>
+
+            <MudSelect T="int?" Label="Bác sĩ" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_doctorId" ValueChanged="OnDoctorChanged">
+                @foreach (var d in _doctors)
+                {
+                    <MudSelectItem T="int?" Value="(int?)d.Id">@d.FullName (@d.SpecialtyName)</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudDatePicker Label="Ngày khám" Variant="Variant.Outlined" Class="mb-3"
+                           Date="_date" DateChanged="OnDateChanged"
+                           MinDate="@UiFormat.TodayVn" MaxDate="@UiFormat.TodayVn.AddDays(90)"
+                           DateFormat="dd/MM/yyyy" Editable="false" />
+
+            @if (CurrentDoctor is { } doctor)
+            {
+                <MudText Typo="Typo.body2">Phí khám: <b>@UiFormat.Money(doctor.ConsultationFee)</b></MudText>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">3. Khung giờ</MudText>
+
+            @if (_loadingSlots)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (_doctorId is null || _date is null)
+            {
+                <MudAlert Severity="Severity.Info">Chọn bác sĩ và ngày khám để xem khung giờ trống.</MudAlert>
+            }
+            else if (_slotsLoaded && _slots.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning">Bác sĩ không có lịch làm việc vào ngày này.</MudAlert>
+            }
+            else
+            {
+                @foreach (var group in _slots.GroupBy(s => s.StartTime.Hour < 12 ? "Buổi sáng" : "Buổi chiều"))
+                {
+                    <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1">@group.Key</MudText>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var item in group)
+                        {
+                            var slot = item;
+                            <MudButton Size="Size.Small" Color="Color.Primary"
+                                       Variant="@(IsSelected(slot) ? Variant.Filled : Variant.Outlined)"
+                                       Disabled="!slot.IsAvailable"
+                                       OnClick="() => _selected = slot">
+                                @UiFormat.Time(slot.StartTime)
+                            </MudButton>
+                        }
+                    </div>
+                }
+            }
+        </MudPaper>
+
+        @if (_selected is not null && _patient is not null && CurrentDoctor is { } picked && _date.HasValue)
+        {
+            <MudPaper Class="pa-4 mt-4">
+                <MudText Typo="Typo.h6" Class="mb-3">4. Xác nhận</MudText>
+                <MudText>
+                    <b>@_patient.FullName</b> khám với <b>@picked.FullName</b> ·
+                    @UiFormat.Date(DateOnly.FromDateTime(_date.Value)) · @UiFormat.Time(_selected.StartTime)
+                </MudText>
+                <MudTextField @bind-Value="_reason" Label="Lý do khám (không bắt buộc)" Variant="Variant.Outlined"
+                              Lines="2" MaxLength="500" Class="mt-3 mb-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="BookAsync">
+                    @(_busy ? "Đang đặt lịch..." : "Đặt lịch")
+                </MudButton>
+            </MudPaper>
+        }
+        else if (_selected is not null && _patient is null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-4">Hãy chọn hoặc tạo hồ sơ bệnh nhân ở bước 1.</MudAlert>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<DoctorDto> _doctors = new();
+    private List<SlotDto> _slots = new();
+
+    // Bệnh nhân
+    private string? _keyword;
+    private List<PatientDto> _results = new();
+    private bool _searched;
+    private PatientDto? _patient;
+    private bool _showNew;
+    private bool _creating;
+    private readonly CreatePatientRequest _newPatient = new();
+
+    // Lịch hẹn
+    private int? _doctorId;
+    private DateTime? _date;
+    private string? _reason;
+    private SlotDto? _selected;
+    private bool _loadingSlots;
+    private bool _slotsLoaded;
+    private bool _busy;
+
+    private DoctorDto? CurrentDoctor => _doctors.FirstOrDefault(d => d.Id == _doctorId);
+
+    private bool IsSelected(SlotDto slot) => _selected is not null && _selected.StartTime == slot.StartTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var doctors = await Api.GetAsync<List<DoctorDto>>("api/doctors");
+        if (doctors.Success)
+            _doctors = doctors.Data ?? new();
+        else
+            Snackbar.Add(doctors.Error, Severity.Error);
+    }
+
+    // ----- Bệnh nhân -----
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_keyword))
+        {
+            Snackbar.Add("Hãy nhập tên hoặc số điện thoại cần tìm.", Severity.Warning);
+            return;
+        }
+
+        var result = await Api.GetAsync<List<PatientDto>>($"api/patients?keyword={Uri.EscapeDataString(_keyword.Trim())}");
+        if (result.Success)
+        {
+            _results = result.Data ?? new();
+            _searched = true;
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    private void SelectPatient(PatientDto patient)
+    {
+        _patient = patient;
+    }
+
+    private void ClearPatient()
+    {
+        _patient = null;
+        _selected = null;
+    }
+
+    private async Task CreatePatientAsync()
+    {
+        _creating = true;
+
+        var request = new CreatePatientRequest
+        {
+            FullName = _newPatient.FullName,
+            Phone = _newPatient.Phone,
+            Gender = string.IsNullOrWhiteSpace(_newPatient.Gender) ? null : _newPatient.Gender,
+            Address = string.IsNullOrWhiteSpace(_newPatient.Address) ? null : _newPatient.Address
+        };
+
+        var result = await Api.PostAsync<PatientDto>("api/patients", request);
+        if (result.Success && result.Data is not null)
+        {
+            _patient = result.Data;
+            _showNew = false;
+            Snackbar.Add($"Đã tạo hồ sơ cho {result.Data.FullName}.", Severity.Success);
+        }
+        else
+        {
+            // Ví dụ: "Số điện thoại này đã có hồ sơ bệnh nhân."
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+
+        _creating = false;
+    }
+
+    // ----- Khung giờ -----
+    private async Task OnDoctorChanged(int? id)
+    {
+        _doctorId = id;
+        await LoadSlotsAsync();
+    }
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _date = date;
+        await LoadSlotsAsync();
+    }
+
+    private async Task LoadSlotsAsync()
+    {
+        _slots = new();
+        _selected = null;
+        _slotsLoaded = false;
+        if (_doctorId is null || _date is null) return;
+
+        _loadingSlots = true;
+        var day = _date.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var result = await Api.GetAsync<List<SlotDto>>($"api/doctors/{_doctorId}/slots?date={day}");
+
+        if (result.Success)
+        {
+            _slots = result.Data ?? new();
+            _slotsLoaded = true;
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+
+        _loadingSlots = false;
+    }
+
+    private async Task BookAsync()
+    {
+        if (_patient is null || CurrentDoctor is not { } doctor || _date is null || _selected is null) return;
+
+        _busy = true;
+
+        var request = new CreateAppointmentRequest
+        {
+            DoctorId = doctor.Id,
+            Date = DateOnly.FromDateTime(_date.Value),
+            StartTime = _selected.StartTime,
+            PatientId = _patient.Id,
+            Reason = string.IsNullOrWhiteSpace(_reason) ? null : _reason.Trim()
+        };
+
+        var result = await Api.PostAsync<AppointmentDto>("api/appointments", request);
+        if (result.Success)
+        {
+            Snackbar.Add($"Đã đặt lịch cho {_patient.FullName}. Lịch hẹn đã được xác nhận.", Severity.Success);
+            Navigation.NavigateTo("reception/appointments");
+            return;
+        }
+
+        Snackbar.Add(result.Error, Severity.Error);
+        if (result.Status == 409) await LoadSlotsAsync(); // có người vừa đặt trước
+
+        _busy = false;
+    }
+}

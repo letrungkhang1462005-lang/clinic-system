@@ -67,4 +67,7 @@ public static class UiFormat
         InvoiceItemType.Medicine => "Thuốc",
         _ => type.ToString()
     };
+    public static DateTime TodayVn => DateTime.UtcNow.AddHours(7).Date;
+
+    public static DateOnly TodayVnDate => DateOnly.FromDateTime(TodayVn);
 }

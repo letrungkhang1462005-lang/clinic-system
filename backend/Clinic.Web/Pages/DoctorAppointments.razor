@@ -1,0 +1,96 @@
+﻿@page "/doctor/appointments"
+@attribute [Authorize(Roles = RoleNames.Doctor)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Lịch khám</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Lịch khám của tôi</MudText>
+
+<MudGrid Class="mb-2">
+    <MudItem xs="8" sm="4">
+        <MudDatePicker Label="Ngày" Variant="Variant.Outlined" Date="_date" DateChanged="OnDateChanged"
+                       DateFormat="dd/MM/yyyy" Editable="false" />
+    </MudItem>
+    <MudItem xs="4" sm="2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" Style="height:56px"
+                   OnClick="GoTodayAsync">Hôm nay</MudButton>
+    </MudItem>
+</MudGrid>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Giờ</MudTh>
+            <MudTh>STT</MudTh>
+            <MudTh>Bệnh nhân</MudTh>
+            <MudTh>Lý do khám</MudTh>
+            <MudTh>Trạng thái</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="a">
+            <MudTd DataLabel="Giờ">@UiFormat.Time(a.StartTime) - @UiFormat.Time(a.EndTime)</MudTd>
+            <MudTd DataLabel="STT">@(a.QueueNumber?.ToString() ?? "-")</MudTd>
+            <MudTd DataLabel="Bệnh nhân">@a.PatientName</MudTd>
+            <MudTd DataLabel="Lý do khám">@a.Reason</MudTd>
+            <MudTd DataLabel="Trạng thái">
+                <MudChip T="string" Size="Size.Small" Color="@UiFormat.StatusColor(a.Status)">@UiFormat.StatusLabel(a.Status)</MudChip>
+            </MudTd>
+            <MudTd>
+                @if (a.Status == AppointmentStatus.Confirmed && a.Date <= UiFormat.TodayVnDate)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               Href="@($"doctor/exam/{a.Id}")">Khám bệnh</MudButton>
+                }
+                else if (a.Status == AppointmentStatus.Completed)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                               Href="@($"doctor/exam/{a.Id}")">Xem bệnh án</MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4">Không có lịch khám nào trong ngày này.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private List<AppointmentDto> _items = new();
+    private DateTime? _date = UiFormat.TodayVn;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _date = date ?? UiFormat.TodayVn;
+        await LoadAsync();
+    }
+
+    private async Task GoTodayAsync()
+    {
+        _date = UiFormat.TodayVn;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        var day = (_date ?? UiFormat.TodayVn).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var result = await Api.GetAsync<List<AppointmentDto>>($"api/appointments?date={day}");
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+}

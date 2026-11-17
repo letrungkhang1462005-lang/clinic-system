@@ -1,0 +1,281 @@
+﻿@page "/reception/billing"
+@attribute [Authorize(Roles = RoleNames.Receptionist)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Thanh toán</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Thanh toán</MudText>
+
+@* ===== Phần 1: lượt khám đã hoàn tất, chưa có hóa đơn ===== *@
+<MudPaper Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-3">Lượt khám chờ lập hóa đơn</MudText>
+
+    <MudDatePicker Label="Ngày khám" Variant="Variant.Outlined" Style="max-width:280px" Class="mb-3"
+                   Date="_date" DateChanged="OnDateChanged" DateFormat="dd/MM/yyyy" Editable="false" />
+
+    @if (_loadingCompleted)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="Pending" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Giờ</MudTh>
+                <MudTh>Bệnh nhân</MudTh>
+                <MudTh>Bác sĩ</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="a">
+                <MudTd DataLabel="Giờ">@UiFormat.Time(a.StartTime)</MudTd>
+                <MudTd DataLabel="Bệnh nhân">@a.PatientName</MudTd>
+                <MudTd DataLabel="Bác sĩ">@a.DoctorName</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="() => StartInvoice(a)">Lập hóa đơn</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4">Không có lượt khám nào đang chờ lập hóa đơn.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    }
+</MudPaper>
+
+@* ===== Form lập hóa đơn (hiện khi bấm "Lập hóa đơn") ===== *@
+@if (_target is not null)
+{
+    <MudPaper Class="pa-4 mb-6" Outlined="true">
+        <MudText Typo="Typo.h6">Lập hóa đơn cho @_target.PatientName</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Lượt khám @UiFormat.Date(_target.Date) lúc @UiFormat.Time(_target.StartTime) với @_target.DoctorName.
+            Hệ thống tự cộng phí khám và thuốc trong đơn. Chọn thêm dịch vụ nếu có:
+        </MudText>
+
+        @foreach (var r in _rows)
+        {
+            var row = r;
+            <div class="d-flex align-center mb-1">
+                <MudCheckBox T="bool" @bind-Value="row.Selected"
+                             Label="@($"{row.Service.Name} ({UiFormat.Money(row.Service.Price)})")" />
+                <MudSpacer />
+                <MudNumericField T="int" @bind-Value="row.Quantity" Min="1" Max="100"
+                                 Disabled="!row.Selected" Variant="Variant.Outlined" Style="max-width:110px" />
+            </div>
+        }
+
+        <div class="mt-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="CreateInvoiceAsync" Class="mr-2">
+                @(_busy ? "Đang lập..." : "Lập hóa đơn")
+            </MudButton>
+            <MudButton Variant="Variant.Text" OnClick="() => _target = null">Hủy</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@* ===== Phần 2: danh sách hóa đơn ===== *@
+<div class="d-flex align-center mb-2">
+    <MudText Typo="Typo.h6">Hóa đơn</MudText>
+    <MudSpacer />
+    <MudSelect T="InvoiceStatus?" @bind-Value="_invFilter" Label="Trạng thái" Variant="Variant.Outlined" Style="max-width:240px">
+        <MudSelectItem T="InvoiceStatus?" Value="(InvoiceStatus?)null">Tất cả</MudSelectItem>
+        <MudSelectItem T="InvoiceStatus?" Value="(InvoiceStatus?)InvoiceStatus.Unpaid">Chưa thanh toán</MudSelectItem>
+        <MudSelectItem T="InvoiceStatus?" Value="(InvoiceStatus?)InvoiceStatus.Paid">Đã thanh toán</MudSelectItem>
+    </MudSelect>
+</div>
+
+@if (_loadingInvoices)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (FilteredInvoices.Count() == 0)
+{
+    <MudAlert Severity="Severity.Info">Không có hóa đơn nào.</MudAlert>
+}
+else
+{
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var inv in FilteredInvoices)
+        {
+            <MudExpansionPanel Text="@($"#{inv.Id} · {inv.PatientName} · {UiFormat.Money(inv.TotalAmount)} · {UiFormat.InvoiceStatusLabel(inv.Status)}")">
+                <MudText Typo="Typo.body2">
+                    Lượt khám ngày @UiFormat.Date(inv.AppointmentDate) · Bác sĩ <b>@inv.DoctorName</b> ·
+                    Lập bởi @inv.CreatedByName lúc @UiFormat.DateTimeVn(inv.CreatedAt)
+                </MudText>
+
+                <MudTable Items="inv.Items" Dense="true" Hover="true" Class="mt-2" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Loại</MudTh>
+                        <MudTh>Nội dung</MudTh>
+                        <MudTh>Số lượng</MudTh>
+                        <MudTh>Đơn giá</MudTh>
+                        <MudTh>Thành tiền</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Loại">@UiFormat.ItemTypeLabel(item.ItemType)</MudTd>
+                        <MudTd DataLabel="Nội dung">@item.Description</MudTd>
+                        <MudTd DataLabel="Số lượng">@item.Quantity</MudTd>
+                        <MudTd DataLabel="Đơn giá">@UiFormat.Money(item.UnitPrice)</MudTd>
+                        <MudTd DataLabel="Thành tiền">@UiFormat.Money(item.LineTotal)</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudText Typo="Typo.h6" Class="mt-3">Tổng cộng: @UiFormat.Money(inv.TotalAmount)</MudText>
+
+                @if (inv.Status == InvoiceStatus.Unpaid)
+                {
+                    <div class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Class="mr-2"
+                                   OnClick="() => PayAsync(inv, PaymentCash)">Thu tiền mặt</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Success"
+                                   OnClick="() => PayAsync(inv, PaymentTransfer)">Thu chuyển khoản</MudButton>
+                    </div>
+                }
+                else if (inv.PaidAt.HasValue)
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        Đã thu lúc @UiFormat.DateTimeVn(inv.PaidAt.Value) (@UiFormat.PaymentLabel(inv.PaymentMethod))
+                    </MudText>
+                }
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+}
+
+@code {
+    private const string PaymentCash = "Cash";
+    private const string PaymentTransfer = "Transfer";
+
+    private sealed class ServiceRow
+    {
+        public ServiceDto Service { get; init; } = null!;
+        public bool Selected { get; set; }
+        public int Quantity { get; set; } = 1;
+    }
+
+    private List<AppointmentDto> _completed = new();
+    private List<InvoiceDto> _invoices = new();
+    private List<ServiceRow> _rows = new();
+    private AppointmentDto? _target;
+
+    private DateTime? _date = UiFormat.TodayVn;
+    private InvoiceStatus? _invFilter = InvoiceStatus.Unpaid;
+
+    private bool _loadingCompleted = true;
+    private bool _loadingInvoices = true;
+    private bool _busy;
+
+    // Lượt khám đã hoàn tất mà chưa có hóa đơn nào
+    private IEnumerable<AppointmentDto> Pending =>
+        _completed.Where(a => _invoices.All(i => i.AppointmentId != a.Id));
+
+    private IEnumerable<InvoiceDto> FilteredInvoices =>
+        _invFilter is null ? _invoices : _invoices.Where(i => i.Status == _invFilter);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var services = await Api.GetAsync<List<ServiceDto>>("api/services");
+        if (services.Success)
+            _rows = (services.Data ?? new()).Select(s => new ServiceRow { Service = s }).ToList();
+
+        await LoadInvoicesAsync();
+        await LoadCompletedAsync();
+    }
+
+    private async Task LoadInvoicesAsync()
+    {
+        _loadingInvoices = true;
+        var result = await Api.GetAsync<List<InvoiceDto>>("api/invoices");
+        if (result.Success)
+            _invoices = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+        _loadingInvoices = false;
+    }
+
+    private async Task LoadCompletedAsync()
+    {
+        _loadingCompleted = true;
+        var day = (_date ?? UiFormat.TodayVn).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var status = (int)AppointmentStatus.Completed;
+        var result = await Api.GetAsync<List<AppointmentDto>>($"api/appointments?date={day}&status={status}");
+        if (result.Success)
+            _completed = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+        _loadingCompleted = false;
+    }
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _date = date ?? UiFormat.TodayVn;
+        _target = null;
+        await LoadCompletedAsync();
+    }
+
+    private void StartInvoice(AppointmentDto a)
+    {
+        foreach (var row in _rows)
+        {
+            row.Selected = false;
+            row.Quantity = 1;
+        }
+        _target = a;
+    }
+
+    private async Task CreateInvoiceAsync()
+    {
+        if (_target is null) return;
+        _busy = true;
+
+        var request = new CreateInvoiceRequest
+        {
+            AppointmentId = _target.Id,
+            Services = _rows.Where(r => r.Selected)
+                .Select(r => new InvoiceServiceItem { ServiceId = r.Service.Id, Quantity = r.Quantity })
+                .ToList()
+        };
+
+        var result = await Api.PostAsync<InvoiceDto>("api/invoices", request);
+        if (result.Success && result.Data is not null)
+        {
+            _invoices.Insert(0, result.Data);
+            Snackbar.Add($"Đã lập hóa đơn #{result.Data.Id}: {UiFormat.Money(result.Data.TotalAmount)}.", Severity.Success);
+            _target = null;
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+            // Hóa đơn đã tồn tại (có thể do người khác vừa lập): tải lại cho đúng dữ liệu
+            if (result.Status == 409) await LoadInvoicesAsync();
+        }
+
+        _busy = false;
+    }
+
+    private async Task PayAsync(InvoiceDto inv, string method)
+    {
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Xác nhận thu tiền",
+            $"Thu {UiFormat.Money(inv.TotalAmount)} ({UiFormat.PaymentLabel(method)}) của {inv.PatientName}?",
+            yesText: "Xác nhận", cancelText: "Hủy");
+        if (confirmed != true) return;
+
+        var result = await Api.PutAsync<InvoiceDto>($"api/invoices/{inv.Id}/pay",
+            new PayInvoiceRequest { PaymentMethod = method });
+
+        if (result.Success && result.Data is not null)
+        {
+            var index = _invoices.FindIndex(i => i.Id == inv.Id);
+            if (index >= 0) _invoices[index] = result.Data;
+            Snackbar.Add("Đã ghi nhận thanh toán.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+}

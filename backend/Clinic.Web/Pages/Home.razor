@@ -7,15 +7,24 @@
         <MudText Typo="Typo.h4" Class="mb-2">Xin chào, @context.User.FindFirst("name")?.Value</MudText>
         <MudText Class="mb-4">Vai trò của bạn: <b>@UiFormat.RoleLabel(context.User.FindFirst("role")?.Value)</b></MudText>
 
-        <AuthorizeView Roles="@RoleNames.Patient" Context="patient">
-            <Authorized>
-                <MudButton Href="book" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Đặt lịch khám</MudButton>
-                <MudButton Href="my-appointments" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch hẹn của tôi</MudButton>
-                <MudButton Href="my-history" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch sử khám</MudButton>
-            </Authorized>
-            <NotAuthorized>
-                <MudAlert Severity="Severity.Info">Các chức năng dành cho vai trò này sẽ được bổ sung ở các bước tiếp theo.</MudAlert>
-            </NotAuthorized>
+        <AuthorizeView Roles="@RoleNames.Patient" Context="p">
+            <MudButton Href="book" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Đặt lịch khám</MudButton>
+            <MudButton Href="my-appointments" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch hẹn của tôi</MudButton>
+            <MudButton Href="my-history" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch sử khám</MudButton>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@RoleNames.Receptionist" Context="r">
+            <MudButton Href="reception/appointments" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch hẹn hôm nay</MudButton>
+            <MudButton Href="reception/new-booking" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Đặt lịch hộ</MudButton>
+            <MudButton Href="reception/billing" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Thanh toán</MudButton>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@RoleNames.Doctor" Context="d">
+            <MudButton Href="doctor/appointments" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Lịch khám hôm nay</MudButton>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@RoleNames.Admin" Context="a">
+            <MudAlert Severity="Severity.Info">Các chức năng quản trị sẽ được bổ sung ở phần 5D.</MudAlert>
         </AuthorizeView>
     </Authorized>
     <NotAuthorized>

@@ -1,0 +1,357 @@
+﻿@page "/doctor/exam/{AppointmentId:int}"
+@attribute [Authorize(Roles = RoleNames.Doctor)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Khám bệnh</PageTitle>
+
+<MudButton Href="doctor/appointments" Variant="Variant.Text" Color="Color.Primary" Class="mb-2">&larr; Quay lại danh sách</MudButton>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_appt is null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    @* ===== Thông tin lượt khám ===== *@
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h5">@_appt.PatientName</MudText>
+        <MudText Typo="Typo.body2" Class="mt-1">
+            Ngày @UiFormat.Date(_appt.Date) · @UiFormat.Time(_appt.StartTime) - @UiFormat.Time(_appt.EndTime)
+            @if (_appt.QueueNumber.HasValue)
+            {
+                <span> · STT @_appt.QueueNumber</span>
+            }
+        </MudText>
+        <MudText Typo="Typo.body2">Lý do khám: @(string.IsNullOrWhiteSpace(_appt.Reason) ? "Không ghi" : _appt.Reason)</MudText>
+        <MudChip T="string" Size="Size.Small" Class="mt-2" Color="@UiFormat.StatusColor(_appt.Status)">@UiFormat.StatusLabel(_appt.Status)</MudChip>
+    </MudPaper>
+
+    @* ===== Bệnh án ===== *@
+    @if (_record is null && _appt.Status != AppointmentStatus.Confirmed)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4">
+            Lịch hẹn đang ở trạng thái "@UiFormat.StatusLabel(_appt.Status)", chưa thể ghi bệnh án.
+        </MudAlert>
+    }
+    else if (_record is null || _editing)
+    {
+        <MudPaper Class="pa-4 mb-4">
+            <MudText Typo="Typo.h6" Class="mb-3">@(_record is null ? "Ghi bệnh án" : "Sửa bệnh án")</MudText>
+
+            <MudTextField @bind-Value="_symptoms" Label="Triệu chứng" Variant="Variant.Outlined"
+                          Lines="3" MaxLength="1000" Class="mb-3" />
+            <MudTextField @bind-Value="_diagnosis" Label="Chẩn đoán (bắt buộc)" Variant="Variant.Outlined"
+                          Lines="2" MaxLength="1000" Class="mb-3" Required="true" />
+            <MudTextField @bind-Value="_notes" Label="Dặn dò" Variant="Variant.Outlined"
+                          Lines="2" MaxLength="1000" Class="mb-3" />
+            <MudDatePicker Label="Ngày tái khám (không bắt buộc)" Variant="Variant.Outlined" Class="mb-3"
+                           @bind-Date="_followUp" MinDate="@UiFormat.TodayVn.AddDays(1)"
+                           DateFormat="dd/MM/yyyy" Editable="false" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveRecordAsync" Class="mr-2">
+                @(_busy ? "Đang lưu..." : (_record is null ? "Lưu bệnh án" : "Cập nhật"))
+            </MudButton>
+            @if (_record is not null)
+            {
+                <MudButton Variant="Variant.Text" OnClick="() => _editing = false">Hủy</MudButton>
+            }
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mb-4">
+            <div class="d-flex align-center mb-2">
+                <MudText Typo="Typo.h6">Bệnh án</MudText>
+                <MudSpacer />
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="StartEdit">Sửa</MudButton>
+            </div>
+            <MudText><b>Triệu chứng:</b> @(string.IsNullOrWhiteSpace(_record.Symptoms) ? "Không ghi nhận" : _record.Symptoms)</MudText>
+            <MudText><b>Chẩn đoán:</b> @_record.Diagnosis</MudText>
+            @if (!string.IsNullOrWhiteSpace(_record.Notes))
+            {
+                <MudText><b>Dặn dò:</b> @_record.Notes</MudText>
+            }
+            @if (_record.FollowUpDate.HasValue)
+            {
+                <MudText><b>Ngày tái khám:</b> @UiFormat.Date(_record.FollowUpDate.Value)</MudText>
+            }
+            <MudText Typo="Typo.caption" Class="mt-2 d-block">Bệnh án chỉ sửa được trong ngày khám.</MudText>
+        </MudPaper>
+
+        @* ===== Đơn thuốc ===== *@
+        @if (_record.Prescription is { } rx)
+        {
+            <MudPaper Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Đơn thuốc</MudText>
+                @if (!string.IsNullOrWhiteSpace(rx.Note))
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">Ghi chú: @rx.Note</MudText>
+                }
+                <MudTable Items="rx.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Thuốc</MudTh>
+                        <MudTh>Số lượng</MudTh>
+                        <MudTh>Cách dùng</MudTh>
+                        <MudTh>Số ngày</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Thuốc">@item.MedicineName</MudTd>
+                        <MudTd DataLabel="Số lượng">@item.Quantity @item.Unit</MudTd>
+                        <MudTd DataLabel="Cách dùng">@item.Dosage</MudTd>
+                        <MudTd DataLabel="Số ngày">@item.DurationDays</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Kê đơn thuốc</MudText>
+
+                @foreach (var r in _rx)
+                {
+                    var row = r;
+                    <MudGrid Class="mb-1">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int?" @bind-Value="row.MedicineId" Label="Thuốc" Variant="Variant.Outlined">
+                                @foreach (var m in _medicines)
+                                {
+                                    <MudSelectItem T="int?" Value="(int?)m.Id">@m.Name (@m.Unit)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudNumericField T="int" @bind-Value="row.Quantity" Min="1" Max="1000" Label="Số lượng" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudNumericField T="int" @bind-Value="row.Days" Min="1" Max="365" Label="Số ngày" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="10" sm="3">
+                            <MudTextField @bind-Value="row.Dosage" Label="Cách dùng" Variant="Variant.Outlined" MaxLength="200" />
+                        </MudItem>
+                        <MudItem xs="2" sm="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           OnClick="() => _rx.Remove(row)" />
+                        </MudItem>
+                    </MudGrid>
+                }
+
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => _rx.Add(new RxRow())" Class="mb-2">+ Thêm thuốc</MudButton>
+
+                <MudTextField @bind-Value="_rxNote" Label="Ghi chú đơn thuốc (không bắt buộc)" Variant="Variant.Outlined"
+                              MaxLength="500" Class="mb-3" />
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SavePrescriptionAsync">
+                    @(_busy ? "Đang lưu..." : "Lưu đơn thuốc")
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="mt-2 d-block">Mỗi bệnh án chỉ có một đơn thuốc. Có thể bỏ qua nếu không cần kê đơn.</MudText>
+            </MudPaper>
+        }
+    }
+
+    @* ===== Các lần khám trước ===== *@
+    @if (PreviousVisits.Any())
+    {
+        <MudText Typo="Typo.h6" Class="mt-6 mb-2">Các lần khám trước</MudText>
+        <MudExpansionPanels MultiExpansion="true">
+            @foreach (var v in PreviousVisits)
+            {
+                <MudExpansionPanel Text="@($"{UiFormat.Date(v.AppointmentDate)} · {v.DoctorName} · {v.Diagnosis}")">
+                    <MudText><b>Triệu chứng:</b> @(string.IsNullOrWhiteSpace(v.Symptoms) ? "Không ghi nhận" : v.Symptoms)</MudText>
+                    <MudText><b>Chẩn đoán:</b> @v.Diagnosis</MudText>
+                    @if (!string.IsNullOrWhiteSpace(v.Notes))
+                    {
+                        <MudText><b>Dặn dò:</b> @v.Notes</MudText>
+                    }
+                    @if (v.Prescription is { } vrx)
+                    {
+                        <MudText Class="mt-2"><b>Thuốc đã kê:</b></MudText>
+                        @foreach (var item in vrx.Items)
+                        {
+                            <MudText Typo="Typo.body2">- @item.MedicineName: @item.Quantity @item.Unit, @item.Dosage, @item.DurationDays ngày</MudText>
+                        }
+                    }
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    }
+}
+
+@code {
+    private sealed class RxRow
+    {
+        public int? MedicineId { get; set; }
+        public int Quantity { get; set; } = 10;
+        public string Dosage { get; set; } = string.Empty;
+        public int Days { get; set; } = 5;
+    }
+
+    [Parameter] public int AppointmentId { get; set; }
+
+    private AppointmentDto? _appt;
+    private MedicalRecordDto? _record;
+    private List<MedicalRecordDto> _history = new();
+    private List<MedicineDto> _medicines = new();
+    private List<RxRow> _rx = new() { new RxRow() };
+
+    private string? _symptoms;
+    private string? _diagnosis;
+    private string? _notes;
+    private DateTime? _followUp;
+    private string? _rxNote;
+
+    private bool _loading = true;
+    private bool _busy;
+    private bool _editing;
+    private string _error = string.Empty;
+    private int _loadedId;
+
+    private IEnumerable<MedicalRecordDto> PreviousVisits =>
+        _history.Where(r => r.AppointmentId != AppointmentId);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedId == AppointmentId) return;
+        _loadedId = AppointmentId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _appt = null;
+
+        var appt = await Api.GetAsync<AppointmentDto>($"api/appointments/{AppointmentId}");
+        if (!appt.Success || appt.Data is null)
+        {
+            _error = appt.Error;
+            _loading = false;
+            return;
+        }
+        _appt = appt.Data;
+
+        // Lịch sử khám của bệnh nhân, trong đó có bệnh án của chính lượt khám này (nếu đã ghi)
+        var history = await Api.GetAsync<List<MedicalRecordDto>>($"api/patients/{_appt.PatientId}/history");
+        _history = history.Success ? history.Data ?? new() : new();
+        _record = _history.FirstOrDefault(r => r.AppointmentId == AppointmentId);
+
+        var medicines = await Api.GetAsync<List<MedicineDto>>("api/medicines");
+        if (medicines.Success) _medicines = medicines.Data ?? new();
+
+        _editing = false;
+        _rx = new() { new RxRow() };
+        _loading = false;
+    }
+
+    private void StartEdit()
+    {
+        if (_record is null) return;
+
+        _symptoms = _record.Symptoms;
+        _diagnosis = _record.Diagnosis;
+        _notes = _record.Notes;
+        _followUp = _record.FollowUpDate?.ToDateTime(TimeOnly.MinValue);
+        _editing = true;
+    }
+
+    private async Task SaveRecordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_diagnosis))
+        {
+            Snackbar.Add("Vui lòng nhập chẩn đoán.", Severity.Warning);
+            return;
+        }
+
+        DateOnly? followUp = _followUp.HasValue ? DateOnly.FromDateTime(_followUp.Value) : null;
+        _busy = true;
+
+        ApiResult<MedicalRecordDto> result;
+        if (_record is null)
+        {
+            result = await Api.PostAsync<MedicalRecordDto>("api/medical-records", new CreateMedicalRecordRequest
+            {
+                AppointmentId = AppointmentId,
+                Symptoms = _symptoms,
+                Diagnosis = _diagnosis.Trim(),
+                Notes = _notes,
+                FollowUpDate = followUp
+            });
+        }
+        else
+        {
+            result = await Api.PutAsync<MedicalRecordDto>($"api/medical-records/{_record.Id}", new UpdateMedicalRecordRequest
+            {
+                Symptoms = _symptoms,
+                Diagnosis = _diagnosis.Trim(),
+                Notes = _notes,
+                FollowUpDate = followUp
+            });
+        }
+
+        _busy = false;
+
+        if (result.Success)
+        {
+            Snackbar.Add("Đã lưu bệnh án.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    private async Task SavePrescriptionAsync()
+    {
+        if (_record is null) return;
+
+        if (_rx.Count == 0 || _rx.Any(r => r.MedicineId is null))
+        {
+            Snackbar.Add("Vui lòng chọn thuốc cho từng dòng.", Severity.Warning);
+            return;
+        }
+        if (_rx.Any(r => string.IsNullOrWhiteSpace(r.Dosage)))
+        {
+            Snackbar.Add("Vui lòng nhập cách dùng cho từng loại thuốc.", Severity.Warning);
+            return;
+        }
+        if (_rx.Select(r => r.MedicineId).Distinct().Count() != _rx.Count)
+        {
+            Snackbar.Add("Đơn thuốc có thuốc bị lặp lại.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+
+        var request = new CreatePrescriptionRequest
+        {
+            MedicalRecordId = _record.Id,
+            Note = string.IsNullOrWhiteSpace(_rxNote) ? null : _rxNote.Trim(),
+            Details = _rx.Select(r => new PrescriptionItemRequest
+            {
+                MedicineId = r.MedicineId!.Value,
+                Quantity = r.Quantity,
+                Dosage = r.Dosage.Trim(),
+                DurationDays = r.Days
+            }).ToList()
+        };
+
+        var result = await Api.PostAsync<PrescriptionDto>("api/prescriptions", request);
+        _busy = false;
+
+        if (result.Success)
+        {
+            Snackbar.Add("Đã lưu đơn thuốc.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+}

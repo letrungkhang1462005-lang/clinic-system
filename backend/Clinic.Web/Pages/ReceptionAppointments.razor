@@ -1,0 +1,178 @@
+﻿@page "/reception/appointments"
+@attribute [Authorize(Roles = RoleNames.Receptionist)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Lịch hẹn</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Quản lý lịch hẹn</MudText>
+    <MudSpacer />
+    <MudButton Href="reception/new-booking" Variant="Variant.Filled" Color="Color.Primary">Đặt lịch hộ</MudButton>
+</div>
+
+<MudGrid Class="mb-2">
+    <MudItem xs="12" sm="4">
+        <MudDatePicker Label="Ngày" Variant="Variant.Outlined" Date="_date" DateChanged="OnDateChanged"
+                       DateFormat="dd/MM/yyyy" Editable="false" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudSelect T="int?" Label="Bác sĩ" Variant="Variant.Outlined" Value="_doctorId" ValueChanged="OnDoctorChanged">
+            <MudSelectItem T="int?" Value="(int?)null">Tất cả bác sĩ</MudSelectItem>
+            @foreach (var d in _doctors)
+            {
+                <MudSelectItem T="int?" Value="(int?)d.Id">@d.FullName</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudSelect T="AppointmentStatus?" Label="Trạng thái" Variant="Variant.Outlined" Value="_status" ValueChanged="OnStatusChanged">
+            <MudSelectItem T="AppointmentStatus?" Value="(AppointmentStatus?)null">Tất cả</MudSelectItem>
+            @foreach (var s in Enum.GetValues<AppointmentStatus>())
+            {
+                <MudSelectItem T="AppointmentStatus?" Value="(AppointmentStatus?)s">@UiFormat.StatusLabel(s)</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudText Typo="Typo.body2" Class="mb-2">Tổng cộng: <b>@_items.Count</b> lịch hẹn</MudText>
+
+    <MudTable Items="_items" Hover="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Giờ</MudTh>
+            <MudTh>STT</MudTh>
+            <MudTh>Bệnh nhân</MudTh>
+            <MudTh>Bác sĩ</MudTh>
+            <MudTh>Lý do</MudTh>
+            <MudTh>Trạng thái</MudTh>
+            <MudTh>Thao tác</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="a">
+            <MudTd DataLabel="Giờ">@UiFormat.Time(a.StartTime) - @UiFormat.Time(a.EndTime)</MudTd>
+            <MudTd DataLabel="STT">@(a.QueueNumber?.ToString() ?? "-")</MudTd>
+            <MudTd DataLabel="Bệnh nhân">@a.PatientName</MudTd>
+            <MudTd DataLabel="Bác sĩ">@a.DoctorName</MudTd>
+            <MudTd DataLabel="Lý do">@a.Reason</MudTd>
+            <MudTd DataLabel="Trạng thái">
+                <MudChip T="string" Size="Size.Small" Color="@UiFormat.StatusColor(a.Status)">@UiFormat.StatusLabel(a.Status)</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Thao tác">
+                @if (a.Status == AppointmentStatus.Pending)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Class="mr-1"
+                               OnClick="() => ConfirmAsync(a)">Xác nhận</MudButton>
+                }
+                @if (a.Status == AppointmentStatus.Confirmed && a.QueueNumber is null)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" Class="mr-1"
+                               OnClick="() => CheckInAsync(a)">Tiếp đón</MudButton>
+                }
+                @if (a.Status is AppointmentStatus.Pending or AppointmentStatus.Confirmed)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="() => CancelAsync(a)">Hủy</MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4">Không có lịch hẹn nào.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private List<DoctorDto> _doctors = new();
+    private List<AppointmentDto> _items = new();
+    private DateTime? _date = UiFormat.TodayVn;
+    private int? _doctorId;
+    private AppointmentStatus? _status;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var doctors = await Api.GetAsync<List<DoctorDto>>("api/doctors");
+        if (doctors.Success) _doctors = doctors.Data ?? new();
+
+        await LoadAsync();
+    }
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _date = date ?? UiFormat.TodayVn;
+        await LoadAsync();
+    }
+
+    private async Task OnDoctorChanged(int? id)
+    {
+        _doctorId = id;
+        await LoadAsync();
+    }
+
+    private async Task OnStatusChanged(AppointmentStatus? status)
+    {
+        _status = status;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        var day = (_date ?? UiFormat.TodayVn).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var query = new List<string> { $"date={day}" };
+        if (_doctorId.HasValue) query.Add($"doctorId={_doctorId}");
+        if (_status.HasValue) query.Add($"status={(int)_status.Value}");
+
+        var result = await Api.GetAsync<List<AppointmentDto>>("api/appointments?" + string.Join("&", query));
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+
+    // Gọi API đổi trạng thái; thành công thì tải lại danh sách để thấy đúng dữ liệu mới nhất
+    private async Task RunAsync(Task<ApiResult<AppointmentDto>> call, string successMessage)
+    {
+        var result = await call;
+        if (result.Success)
+        {
+            Snackbar.Add(successMessage, Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    private Task ConfirmAsync(AppointmentDto a) =>
+        RunAsync(Api.PutAsync<AppointmentDto>($"api/appointments/{a.Id}/confirm"), "Đã xác nhận lịch hẹn.");
+
+    private Task CheckInAsync(AppointmentDto a) =>
+        RunAsync(Api.PutAsync<AppointmentDto>($"api/appointments/{a.Id}/check-in"), "Đã tiếp đón, số thứ tự đã được cấp.");
+
+    private async Task CancelAsync(AppointmentDto a)
+    {
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Hủy lịch hẹn",
+            $"Hủy lịch của {a.PatientName} lúc {UiFormat.Time(a.StartTime)} ngày {UiFormat.Date(a.Date)}?",
+            yesText: "Hủy lịch", cancelText: "Giữ lịch");
+        if (confirmed != true) return;
+
+        await RunAsync(
+            Api.PutAsync<AppointmentDto>($"api/appointments/{a.Id}/cancel",
+                new CancelAppointmentRequest { Reason = "Lễ tân hủy lịch" }),
+            "Đã hủy lịch hẹn.");
+    }
+}
