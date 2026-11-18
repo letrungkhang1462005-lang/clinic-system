@@ -101,6 +101,9 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
     await DbSeeder.SeedAsync(db);
+
+    if (app.Configuration.GetValue<bool>("Seed:DemoData"))
+        await DbSeeder.SeedDemoHistoryAsync(db);
 }
 
 app.UseMiddleware<ExceptionMiddleware>();

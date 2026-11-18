@@ -70,4 +70,23 @@ public static class UiFormat
     public static DateTime TodayVn => DateTime.UtcNow.AddHours(7).Date;
 
     public static DateOnly TodayVnDate => DateOnly.FromDateTime(TodayVn);
+    // Rút gọn số tiền cho trục biểu đồ: 1,5 tr, 250 k
+    public static string MoneyShort(double amount) => amount switch
+    {
+        >= 1_000_000_000 => (amount / 1_000_000_000).ToString("0.##", CultureInfo.InvariantCulture) + " tỷ",
+        >= 1_000_000 => (amount / 1_000_000).ToString("0.##", CultureInfo.InvariantCulture) + " tr",
+        >= 1_000 => (amount / 1_000).ToString("0.#", CultureInfo.InvariantCulture) + " k",
+        _ => amount.ToString("0", CultureInfo.InvariantCulture)
+    };
+
+    public static string DayLabel(DayOfWeek day) => day switch
+    {
+        DayOfWeek.Monday => "Thứ hai",
+        DayOfWeek.Tuesday => "Thứ ba",
+        DayOfWeek.Wednesday => "Thứ tư",
+        DayOfWeek.Thursday => "Thứ năm",
+        DayOfWeek.Friday => "Thứ sáu",
+        DayOfWeek.Saturday => "Thứ bảy",
+        _ => "Chủ nhật"
+    };
 }

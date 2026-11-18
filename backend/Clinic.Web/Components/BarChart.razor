@@ -1,0 +1,46 @@
+﻿@using System.Globalization
+
+@if (Bars.Count == 0 || Bars.All(b => b.Value <= 0))
+{
+    <MudAlert Severity="Severity.Info">Chưa có dữ liệu trong khoảng thời gian này.</MudAlert>
+}
+else
+{
+    var max = Bars.Max(b => b.Value);
+
+    <MudText Typo="Typo.caption">Cao nhất: @Format(max)</MudText>
+    <div style="overflow-x:auto">
+        <div style="min-width:@(MinWidth)px">
+            <div style="display:flex;align-items:flex-end;gap:2px;height:@(Height)px;border-bottom:1px solid var(--mud-palette-lines-default)">
+                @foreach (var bar in Bars)
+                {
+                    var pct = bar.Value <= 0 ? 0 : Math.Max(bar.Value / max * 100, 1);
+                    <div title="@bar.Tooltip"
+                         style="flex:1;min-width:4px;height:@(F(pct))%;background:var(--mud-palette-primary);border-radius:3px 3px 0 0"></div>
+                }
+            </div>
+            <div style="display:flex;gap:2px;margin-top:4px">
+                @for (var i = 0; i < Bars.Count; i++)
+                {
+                    <div style="flex:1;min-width:4px;height:16px;position:relative;font-size:11px;white-space:nowrap">
+                        <span style="position:absolute;left:50%;transform:translateX(-50%)">@(i % LabelEvery == 0 ? Bars[i].Label : "")</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    public sealed record Bar(string Label, double Value, string Tooltip);
+
+    [Parameter] public IReadOnlyList<Bar> Bars { get; set; } = Array.Empty<Bar>();
+    [Parameter] public Func<double, string>? ValueFormat { get; set; }
+    [Parameter] public int LabelEvery { get; set; } = 1;
+    [Parameter] public int Height { get; set; } = 240;
+    [Parameter] public int MinWidth { get; set; } = 480;
+
+    private string Format(double v) => ValueFormat?.Invoke(v) ?? v.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string F(double d) => d.ToString("0.##", CultureInfo.InvariantCulture);
+}

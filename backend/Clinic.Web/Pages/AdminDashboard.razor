@@ -1,0 +1,184 @@
+﻿@page "/admin/dashboard"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@using System.Globalization
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard thống kê</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="6" sm="3">
+            <MudDatePicker Label="Từ ngày" Variant="Variant.Outlined" Date="_from" DateChanged="OnFromChanged"
+                           DateFormat="dd/MM/yyyy" Editable="false" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudDatePicker Label="Đến ngày" Variant="Variant.Outlined" Date="_to" DateChanged="OnToChanged"
+                           DateFormat="dd/MM/yyyy" Editable="false" />
+        </MudItem>
+        <MudItem xs="12" sm="6" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2" OnClick="() => SetRangeAsync(7)">7 ngày</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mr-2" OnClick="() => SetRangeAsync(30)">30 ngày</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => SetRangeAsync(90)">90 ngày</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_summary is { } s)
+{
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" md="3">
+            <StatCard Title="Doanh thu (đã thu)" Value="@UiFormat.Money(s.TotalRevenue)"
+                      Hint="@($"{s.PaidInvoices} hóa đơn")" Color="Color.Success" />
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <StatCard Title="Công nợ chưa thu" Value="@UiFormat.Money(s.UnpaidAmount)"
+                      Hint="Hóa đơn lập trong kỳ" Color="Color.Warning" />
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <StatCard Title="Lịch hẹn" Value="@s.TotalAppointments.ToString()"
+                      Hint="@($"{s.CompletedAppointments} đã khám")" Color="Color.Primary" />
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <StatCard Title="Tỷ lệ hủy" Value="@($"{s.CancelRate.ToString("0.0", CultureInfo.InvariantCulture)}%")"
+                      Hint="@($"{s.CancelledAppointments} lịch bị hủy")" Color="Color.Error" />
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <StatCard Title="Bệnh nhân mới" Value="@s.NewPatients.ToString()" Hint="Hồ sơ tạo trong kỳ" />
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Doanh thu theo ngày</MudText>
+                <BarChart Bars="_revenueBars" LabelEvery="_labelEvery" ValueFormat="MoneyFormat" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Lượt khám theo giờ</MudText>
+                <BarChart Bars="_hourBars" MinWidth="260" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Bác sĩ được đặt nhiều nhất</MudText>
+                <MudTable Items="_top" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>#</MudTh>
+                        <MudTh>Bác sĩ</MudTh>
+                        <MudTh>Chuyên khoa</MudTh>
+                        <MudTh>Số lượt</MudTh>
+                        <MudTh>Đã khám</MudTh>
+                        <MudTh Style="min-width:160px"></MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="d">
+                        <MudTd DataLabel="#">@(_top.IndexOf(d) + 1)</MudTd>
+                        <MudTd DataLabel="Bác sĩ">@d.DoctorName</MudTd>
+                        <MudTd DataLabel="Chuyên khoa">@d.SpecialtyName</MudTd>
+                        <MudTd DataLabel="Số lượt">@d.Appointments</MudTd>
+                        <MudTd DataLabel="Đã khám">@d.Completed</MudTd>
+                        <MudTd><MudProgressLinear Value="@Pct(d.Appointments)" Color="Color.Primary" /></MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Class="pa-4">Chưa có dữ liệu.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private static readonly Func<double, string> MoneyFormat = UiFormat.MoneyShort;
+
+    private DateTime? _from = UiFormat.TodayVn.AddDays(-29);
+    private DateTime? _to = UiFormat.TodayVn;
+    private bool _loading = true;
+
+    private DashboardSummaryDto? _summary;
+    private List<TopDoctorDto> _top = new();
+    private List<BarChart.Bar> _revenueBars = new();
+    private List<BarChart.Bar> _hourBars = new();
+    private int _labelEvery = 1;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private double Pct(int value)
+    {
+        var max = _top.Count == 0 ? 0 : _top.Max(t => t.Appointments);
+        return max == 0 ? 0 : value * 100.0 / max;
+    }
+
+    private async Task OnFromChanged(DateTime? date)
+    {
+        _from = date;
+        await LoadAsync();
+    }
+
+    private async Task OnToChanged(DateTime? date)
+    {
+        _to = date;
+        await LoadAsync();
+    }
+
+    private async Task SetRangeAsync(int days)
+    {
+        _to = UiFormat.TodayVn;
+        _from = _to.Value.AddDays(-(days - 1));
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        var from = (_from ?? UiFormat.TodayVn.AddDays(-29)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var to = (_to ?? UiFormat.TodayVn).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var q = $"from={from}&to={to}";
+
+        var summaryTask = Api.GetAsync<DashboardSummaryDto>($"api/dashboard/summary?{q}");
+        var revenueTask = Api.GetAsync<List<RevenuePointDto>>($"api/dashboard/revenue-by-day?{q}");
+        var topTask = Api.GetAsync<List<TopDoctorDto>>($"api/dashboard/top-doctors?{q}&limit=5");
+        var peakTask = Api.GetAsync<List<PeakHourDto>>($"api/dashboard/peak-hours?{q}");
+        await Task.WhenAll(summaryTask, revenueTask, topTask, peakTask);
+
+        var summary = summaryTask.Result;
+        if (!summary.Success)
+        {
+            // Ví dụ: "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc."
+            Snackbar.Add(summary.Error, Severity.Error);
+            _summary = null;
+            _loading = false;
+            return;
+        }
+        _summary = summary.Data;
+
+        List<RevenuePointDto> revenue = revenueTask.Result.Data ?? new();
+        _labelEvery = Math.Max(1, revenue.Count / 8);
+        _revenueBars = revenue.Select(p => new BarChart.Bar(
+            p.Date.ToString("dd/MM", CultureInfo.InvariantCulture),
+            (double)p.Revenue,
+            $"{UiFormat.Date(p.Date)}: {UiFormat.Money(p.Revenue)} ({p.Invoices} hóa đơn)")).ToList();
+
+        _top = topTask.Result.Data ?? new();
+
+        // Hiển thị cố định khung 7h đến 17h; giờ không có lượt khám thì cột bằng 0
+        List<PeakHourDto> peak = peakTask.Result.Data ?? new();
+        var byHour = peak.ToDictionary(h => h.Hour, h => h.Appointments);
+        _hourBars = Enumerable.Range(7, 11).Select(h =>
+        {
+            byHour.TryGetValue(h, out var n);
+            return new BarChart.Bar($"{h}h", n, $"{h}:00 - {h}:59: {n} lượt");
+        }).ToList();
+
+        _loading = false;
+    }
+}

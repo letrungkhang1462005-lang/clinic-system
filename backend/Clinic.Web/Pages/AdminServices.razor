@@ -1,0 +1,132 @@
+﻿@page "/admin/services"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Dịch vụ</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Danh mục dịch vụ</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartNew">Thêm dịch vụ</MudButton>
+</div>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "Thêm dịch vụ" : "Sửa dịch vụ")</MudText>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_form.Name" For="@(() => _form.Name)" Label="Tên dịch vụ" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal" @bind-Value="_form.Price" Label="Đơn giá (đ)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_form.Description" Label="Mô tả" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+            <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Primary" Label="Đang sử dụng" />
+            <div class="mt-2">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="_busy" Class="mr-2">Lưu</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="() => _showForm = false">Hủy</MudButton>
+            </div>
+        </EditForm>
+    </MudPaper>
+}
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Dịch vụ</MudTh>
+            <MudTh>Đơn giá</MudTh>
+            <MudTh>Trạng thái</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="s">
+            <MudTd DataLabel="Dịch vụ">@s.Name</MudTd>
+            <MudTd DataLabel="Đơn giá">@UiFormat.Money(s.Price)</MudTd>
+            <MudTd DataLabel="Trạng thái">
+                <MudChip T="string" Size="Size.Small" Color="@(s.IsActive ? Color.Success : Color.Default)">@(s.IsActive ? "Đang dùng" : "Đã ẩn")</MudChip>
+            </MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                           OnClick="() => StartEdit(s)">Sửa</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<ServiceDto> _items = new();
+    private ServiceRequest _form = new();
+    private int? _editingId;
+    private bool _showForm;
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Api.GetAsync<List<ServiceDto>>("api/services?includeInactive=true");
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+        _loading = false;
+    }
+
+    private void StartNew()
+    {
+        _form = new ServiceRequest();
+        _editingId = null;
+        _showForm = true;
+    }
+
+    private void StartEdit(ServiceDto s)
+    {
+        _form = new ServiceRequest { Name = s.Name, Price = s.Price, Description = s.Description, IsActive = s.IsActive };
+        _editingId = s.Id;
+        _showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+
+        string? error = null;
+        if (_editingId is null)
+        {
+            var created = await Api.PostAsync<ServiceDto>("api/services", _form);
+            if (!created.Success) error = created.Error;
+        }
+        else
+        {
+            var updated = await Api.PutAsync<Empty>($"api/services/{_editingId}", _form);
+            if (!updated.Success) error = updated.Error;
+        }
+
+        _busy = false;
+
+        if (error is null)
+        {
+            Snackbar.Add("Đã lưu dịch vụ.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+}

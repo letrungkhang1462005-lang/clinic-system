@@ -1,0 +1,179 @@
+﻿@page "/admin/medicines"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Thuốc</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Danh mục thuốc</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartNew">Thêm thuốc</MudButton>
+</div>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "Thêm thuốc" : "Sửa thuốc")</MudText>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_form.Name" For="@(() => _form.Name)" Label="Tên thuốc" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="_form.Unit" For="@(() => _form.Unit)" Label="Đơn vị (viên, hộp...)" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudNumericField T="decimal" @bind-Value="_form.Price" Label="Đơn giá (đ)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_form.Description" Label="Mô tả" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+            <MudSwitch T="bool" @bind-Value="_form.IsActive" Color="Color.Primary" Label="Đang sử dụng (tắt để ẩn khỏi danh sách kê đơn)" />
+            <div class="mt-2">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="_busy" Class="mr-2">Lưu</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="() => _showForm = false">Hủy</MudButton>
+            </div>
+        </EditForm>
+    </MudPaper>
+}
+
+<MudGrid Class="mb-2">
+    <MudItem xs="8" sm="5">
+        <MudTextField @bind-Value="_keyword" Immediate="true" OnKeyUp="OnKeyUp"
+                      Label="Tìm theo tên" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="4" sm="2">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height:56px"
+                   OnClick="LoadAsync">Tìm</MudButton>
+    </MudItem>
+    <MudItem xs="12" sm="5" Class="d-flex align-center">
+        <MudSwitch T="bool" Value="_showInactive" ValueChanged="OnToggleInactive" Color="Color.Primary" Label="Hiện cả thuốc đã ẩn" />
+    </MudItem>
+</MudGrid>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Tên thuốc</MudTh>
+            <MudTh>Đơn vị</MudTh>
+            <MudTh>Đơn giá</MudTh>
+            <MudTh>Trạng thái</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="m">
+            <MudTd DataLabel="Tên thuốc">@m.Name</MudTd>
+            <MudTd DataLabel="Đơn vị">@m.Unit</MudTd>
+            <MudTd DataLabel="Đơn giá">@UiFormat.Money(m.Price)</MudTd>
+            <MudTd DataLabel="Trạng thái">
+                <MudChip T="string" Size="Size.Small" Color="@(m.IsActive ? Color.Success : Color.Default)">@(m.IsActive ? "Đang dùng" : "Đã ẩn")</MudChip>
+            </MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                           OnClick="() => StartEdit(m)">Sửa</MudButton>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4">Không tìm thấy thuốc nào.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private List<MedicineDto> _items = new();
+    private MedicineRequest _form = new();
+    private int? _editingId;
+    private string? _keyword;
+    private bool _showInactive = true;
+    private bool _showForm;
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadAsync();
+    }
+
+    private async Task OnToggleInactive(bool value)
+    {
+        _showInactive = value;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        var query = new List<string> { $"includeInactive={(_showInactive ? "true" : "false")}" };
+        if (!string.IsNullOrWhiteSpace(_keyword)) query.Add($"keyword={Uri.EscapeDataString(_keyword.Trim())}");
+
+        var result = await Api.GetAsync<List<MedicineDto>>("api/medicines?" + string.Join("&", query));
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+
+        _loading = false;
+    }
+
+    private void StartNew()
+    {
+        _form = new MedicineRequest { Unit = "viên" };
+        _editingId = null;
+        _showForm = true;
+    }
+
+    private void StartEdit(MedicineDto m)
+    {
+        _form = new MedicineRequest
+        {
+            Name = m.Name,
+            Unit = m.Unit,
+            Price = m.Price,
+            Description = m.Description,
+            IsActive = m.IsActive
+        };
+        _editingId = m.Id;
+        _showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+
+        string? error = null;
+        if (_editingId is null)
+        {
+            var created = await Api.PostAsync<MedicineDto>("api/medicines", _form);
+            if (!created.Success) error = created.Error;
+        }
+        else
+        {
+            var updated = await Api.PutAsync<Empty>($"api/medicines/{_editingId}", _form);
+            if (!updated.Success) error = updated.Error;
+        }
+
+        _busy = false;
+
+        if (error is null)
+        {
+            Snackbar.Add("Đã lưu thuốc.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+}

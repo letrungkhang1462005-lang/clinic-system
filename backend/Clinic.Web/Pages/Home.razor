@@ -24,7 +24,8 @@
         </AuthorizeView>
 
         <AuthorizeView Roles="@RoleNames.Admin" Context="a">
-            <MudAlert Severity="Severity.Info">Các chức năng quản trị sẽ được bổ sung ở phần 5D.</MudAlert>
+            <MudButton Href="admin/dashboard" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Dashboard</MudButton>
+            <MudButton Href="admin/doctors" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Quản lý bác sĩ</MudButton>
         </AuthorizeView>
     </Authorized>
     <NotAuthorized>
@@ -37,3 +38,5 @@
         </MudPaper>
     </NotAuthorized>
 </AuthorizeView>
+
+

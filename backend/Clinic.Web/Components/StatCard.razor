@@ -1,0 +1,15 @@
+﻿<MudPaper Class="pa-4" Style="height:100%">
+    <MudText Typo="Typo.caption">@Title</MudText>
+    <MudText Typo="Typo.h5" Color="@Color">@Value</MudText>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <MudText Typo="Typo.caption">@Hint</MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public Color Color { get; set; } = Color.Default;
+}

@@ -18,6 +18,13 @@
     <AuthorizeView Roles="@RoleNames.Doctor">
         <MudNavLink Href="doctor/appointments" @Icons.Material.Filled.MedicalServices">Lịch khám</MudNavLink>
     </AuthorizeView>
+    <AuthorizeView Roles="@RoleNames.Admin">
+        <MudNavLink Href="admin/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+        <MudNavLink Href="admin/doctors" Icon="@Icons.Material.Filled.ManageAccounts">Bác sĩ</MudNavLink>
+        <MudNavLink Href="admin/specialties" Icon="@Icons.Material.Filled.Category">Chuyên khoa</MudNavLink>
+        <MudNavLink Href="admin/medicines" Icon="@Icons.Material.Filled.Medication">Thuốc</MudNavLink>
+        <MudNavLink Href="admin/services" Icon="@Icons.Material.Filled.MiscellaneousServices">Dịch vụ</MudNavLink>
+    </AuthorizeView>
 
     @* Mục của Admin sẽ được thêm ở phần 5D *@
 

@@ -1,0 +1,387 @@
+﻿@page "/admin/doctors"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Quản lý bác sĩ</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Quản lý bác sĩ</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartNew">Thêm bác sĩ</MudButton>
+</div>
+
+@* ===== Form thêm / sửa bác sĩ ===== *@
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "Thêm bác sĩ" : "Sửa thông tin bác sĩ")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.FullName" Label="Họ và tên" Variant="Variant.Outlined" MaxLength="150" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.Phone" Label="Số điện thoại" Variant="Variant.Outlined" MaxLength="20" />
+            </MudItem>
+
+            @if (_editingId is null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_form.Email" Label="Email đăng nhập" Variant="Variant.Outlined" InputType="InputType.Email" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_form.Password" Label="Mật khẩu (tối thiểu 6 ký tự)" Variant="Variant.Outlined" InputType="InputType.Password" />
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="_form.SpecialtyId" Label="Chuyên khoa" Variant="Variant.Outlined">
+                    @foreach (var s in _specialties)
+                    {
+                        <MudSelectItem T="int?" Value="(int?)s.Id">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.Degree" Label="Học vị" Variant="Variant.Outlined" MaxLength="100" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="_form.ExperienceYears" Label="Kinh nghiệm (năm)" Variant="Variant.Outlined" Min="0" Max="80" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="decimal" @bind-Value="_form.ConsultationFee" Label="Phí khám (đ)" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Bio" Label="Giới thiệu" Variant="Variant.Outlined" Lines="2" MaxLength="1000" />
+            </MudItem>
+        </MudGrid>
+
+        <div class="mt-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveAsync" Class="mr-2">Lưu</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="() => _showForm = false">Hủy</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@* ===== Danh sách bác sĩ ===== *@
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_doctors" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Bác sĩ</MudTh>
+            <MudTh>Chuyên khoa</MudTh>
+            <MudTh>Học vị</MudTh>
+            <MudTh>Phí khám</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="d">
+            <MudTd DataLabel="Bác sĩ">@d.FullName<br /><MudText Typo="Typo.caption">@d.Email</MudText></MudTd>
+            <MudTd DataLabel="Chuyên khoa">@d.SpecialtyName</MudTd>
+            <MudTd DataLabel="Học vị">@d.Degree</MudTd>
+            <MudTd DataLabel="Phí khám">@UiFormat.Money(d.ConsultationFee)</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mr-1"
+                           OnClick="() => StartEdit(d)">Sửa</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" Class="mr-1"
+                           OnClick="() => OpenSchedulesAsync(d)">Lịch làm việc</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                           OnClick="() => DeactivateAsync(d)">Vô hiệu hóa</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@* ===== Lịch làm việc của bác sĩ được chọn ===== *@
+@if (_schedDoctor is not null)
+{
+    <MudPaper Class="pa-4 mt-4">
+        <div class="d-flex align-center mb-2">
+            <MudText Typo="Typo.h6">Lịch làm việc: @_schedDoctor.FullName</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" OnClick="() => _schedDoctor = null">Đóng</MudButton>
+        </div>
+
+        <MudTable Items="_schedules" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Thứ</MudTh>
+                <MudTh>Giờ làm việc</MudTh>
+                <MudTh>Mỗi lượt khám</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="sc">
+                <MudTd DataLabel="Thứ">@UiFormat.DayLabel(sc.DayOfWeek)</MudTd>
+                <MudTd DataLabel="Giờ làm việc">@UiFormat.Time(sc.StartTime) - @UiFormat.Time(sc.EndTime)</MudTd>
+                <MudTd DataLabel="Mỗi lượt khám">@sc.SlotMinutes phút</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="() => DeleteScheduleAsync(sc)">Xóa</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4">Bác sĩ chưa có ca làm việc nào, nên bệnh nhân chưa đặt lịch được.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Thêm ca làm việc</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="DayOfWeek" @bind-Value="_day" Label="Thứ" Variant="Variant.Outlined">
+                    @foreach (var day in Days)
+                    {
+                        <MudSelectItem T="DayOfWeek" Value="day">@UiFormat.DayLabel(day)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudTimePicker Label="Từ giờ" Variant="Variant.Outlined" @bind-Time="_start" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudTimePicker Label="Đến giờ" Variant="Variant.Outlined" @bind-Time="_end" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudNumericField T="int" @bind-Value="_slotMinutes" Label="Phút mỗi lượt" Variant="Variant.Outlined" Min="10" Max="120" />
+            </MudItem>
+        </MudGrid>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" Disabled="_busy"
+                   OnClick="AddScheduleAsync">Thêm ca</MudButton>
+        <MudText Typo="Typo.caption" Class="mt-2 d-block">
+            Ca bị chồng giờ với ca khác trong cùng ngày sẽ bị từ chối. Muốn sửa một ca, hãy xóa rồi thêm lại.
+        </MudText>
+    </MudPaper>
+}
+
+@code {
+    private sealed class DoctorForm
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+        public int? SpecialtyId { get; set; }
+        public string? Degree { get; set; }
+        public int? ExperienceYears { get; set; }
+        public string? Bio { get; set; }
+        public decimal ConsultationFee { get; set; } = 200000;
+    }
+
+    private static readonly DayOfWeek[] Days =
+    {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
+    };
+
+    private List<DoctorDto> _doctors = new();
+    private List<SpecialtyDto> _specialties = new();
+    private DoctorForm _form = new();
+    private int? _editingId;
+    private bool _showForm;
+    private bool _loading = true;
+    private bool _busy;
+
+    // Lịch làm việc
+    private DoctorDto? _schedDoctor;
+    private List<ScheduleDto> _schedules = new();
+    private DayOfWeek _day = DayOfWeek.Monday;
+    private TimeSpan? _start = new TimeSpan(7, 30, 0);
+    private TimeSpan? _end = new TimeSpan(11, 30, 0);
+    private int _slotMinutes = 30;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var specialties = await Api.GetAsync<List<SpecialtyDto>>("api/specialties");
+        if (specialties.Success) _specialties = specialties.Data ?? new();
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Api.GetAsync<List<DoctorDto>>("api/doctors");
+        if (result.Success)
+            _doctors = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+        _loading = false;
+    }
+
+    // ----- Thêm, sửa, vô hiệu hóa bác sĩ -----
+    private void StartNew()
+    {
+        _form = new DoctorForm();
+        _editingId = null;
+        _showForm = true;
+    }
+
+    private void StartEdit(DoctorDto d)
+    {
+        _form = new DoctorForm
+        {
+            FullName = d.FullName,
+            Phone = d.Phone,
+            SpecialtyId = d.SpecialtyId,
+            Degree = d.Degree,
+            ExperienceYears = d.ExperienceYears,
+            Bio = d.Bio,
+            ConsultationFee = d.ConsultationFee
+        };
+        _editingId = d.Id;
+        _showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.FullName) || _form.SpecialtyId is null)
+        {
+            Snackbar.Add("Vui lòng nhập họ tên và chọn chuyên khoa.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+        string? error = null;
+
+        if (_editingId is null)
+        {
+            if (string.IsNullOrWhiteSpace(_form.Email) || _form.Password.Length < 6)
+            {
+                Snackbar.Add("Vui lòng nhập email và mật khẩu từ 6 ký tự.", Severity.Warning);
+                _busy = false;
+                return;
+            }
+
+            var created = await Api.PostAsync<DoctorDto>("api/doctors", new CreateDoctorRequest
+            {
+                Email = _form.Email.Trim(),
+                Password = _form.Password,
+                FullName = _form.FullName.Trim(),
+                Phone = _form.Phone,
+                SpecialtyId = _form.SpecialtyId.Value,
+                Degree = _form.Degree,
+                ExperienceYears = _form.ExperienceYears,
+                Bio = _form.Bio,
+                ConsultationFee = _form.ConsultationFee
+            });
+            if (!created.Success) error = created.Error;
+        }
+        else
+        {
+            var updated = await Api.PutAsync<Empty>($"api/doctors/{_editingId}", new UpdateDoctorRequest
+            {
+                FullName = _form.FullName.Trim(),
+                Phone = _form.Phone,
+                SpecialtyId = _form.SpecialtyId.Value,
+                Degree = _form.Degree,
+                ExperienceYears = _form.ExperienceYears,
+                Bio = _form.Bio,
+                ConsultationFee = _form.ConsultationFee,
+                IsActive = true
+            });
+            if (!updated.Success) error = updated.Error;
+        }
+
+        _busy = false;
+
+        if (error is null)
+        {
+            Snackbar.Add("Đã lưu thông tin bác sĩ.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(DoctorDto d)
+    {
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Vô hiệu hóa bác sĩ",
+            $"{d.FullName} sẽ không còn xuất hiện khi đặt lịch và không đăng nhập được. Lịch hẹn và bệnh án cũ vẫn được giữ nguyên.",
+            yesText: "Vô hiệu hóa", cancelText: "Hủy");
+        if (confirmed != true) return;
+
+        var result = await Api.DeleteAsync($"api/doctors/{d.Id}");
+        if (result.Success)
+        {
+            Snackbar.Add("Đã vô hiệu hóa bác sĩ.", Severity.Success);
+            if (_schedDoctor?.Id == d.Id) _schedDoctor = null;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    // ----- Lịch làm việc -----
+    private async Task OpenSchedulesAsync(DoctorDto d)
+    {
+        _schedDoctor = d;
+        await LoadSchedulesAsync();
+    }
+
+    private async Task LoadSchedulesAsync()
+    {
+        if (_schedDoctor is null) return;
+
+        var result = await Api.GetAsync<List<ScheduleDto>>($"api/doctors/{_schedDoctor.Id}/schedules");
+        if (result.Success)
+            _schedules = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+    }
+
+    private async Task AddScheduleAsync()
+    {
+        if (_schedDoctor is null) return;
+        if (_start is null || _end is null)
+        {
+            Snackbar.Add("Vui lòng chọn giờ bắt đầu và giờ kết thúc.", Severity.Warning);
+            return;
+        }
+
+        _busy = true;
+
+        var result = await Api.PostAsync<ScheduleDto>($"api/doctors/{_schedDoctor.Id}/schedules", new ScheduleRequest
+        {
+            DayOfWeek = _day,
+            StartTime = TimeOnly.FromTimeSpan(_start.Value),
+            EndTime = TimeOnly.FromTimeSpan(_end.Value),
+            SlotMinutes = _slotMinutes
+        });
+
+        _busy = false;
+
+        if (result.Success)
+        {
+            Snackbar.Add("Đã thêm ca làm việc.", Severity.Success);
+            await LoadSchedulesAsync();
+        }
+        else
+        {
+            // Ví dụ: "Ca làm việc bị chồng lên ca khác trong cùng ngày."
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    private async Task DeleteScheduleAsync(ScheduleDto sc)
+    {
+        var result = await Api.DeleteAsync($"api/schedules/{sc.Id}");
+        if (result.Success)
+        {
+            Snackbar.Add("Đã xóa ca làm việc.", Severity.Success);
+            await LoadSchedulesAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+}

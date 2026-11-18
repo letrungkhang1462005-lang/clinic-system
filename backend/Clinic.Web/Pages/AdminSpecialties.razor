@@ -1,0 +1,136 @@
+﻿@page "/admin/specialties"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Chuyên khoa</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Quản lý chuyên khoa</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartNew">Thêm chuyên khoa</MudButton>
+</div>
+
+@if (_showForm)
+{
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-3">@(_editingId is null ? "Thêm chuyên khoa" : "Sửa chuyên khoa")</MudText>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_form.Name" For="@(() => _form.Name)"
+                          Label="Tên chuyên khoa" Variant="Variant.Outlined" Class="mb-3" />
+            <MudTextField @bind-Value="_form.Description" For="@(() => _form.Description)"
+                          Label="Mô tả" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="_busy" Class="mr-2">Lưu</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="() => _showForm = false">Hủy</MudButton>
+        </EditForm>
+    </MudPaper>
+}
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Tên</MudTh>
+            <MudTh>Mô tả</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="s">
+            <MudTd DataLabel="Tên">@s.Name</MudTd>
+            <MudTd DataLabel="Mô tả">@s.Description</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mr-1"
+                           OnClick="() => StartEdit(s)">Sửa</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                           OnClick="() => DeleteAsync(s)">Xóa</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<SpecialtyDto> _items = new();
+    private SpecialtyRequest _form = new();
+    private int? _editingId;
+    private bool _showForm;
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var result = await Api.GetAsync<List<SpecialtyDto>>("api/specialties");
+        if (result.Success)
+            _items = result.Data ?? new();
+        else
+            Snackbar.Add(result.Error, Severity.Error);
+        _loading = false;
+    }
+
+    private void StartNew()
+    {
+        _form = new SpecialtyRequest();
+        _editingId = null;
+        _showForm = true;
+    }
+
+    private void StartEdit(SpecialtyDto s)
+    {
+        _form = new SpecialtyRequest { Name = s.Name, Description = s.Description };
+        _editingId = s.Id;
+        _showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+
+        var result = _editingId is null
+            ? await Api.PostAsync<SpecialtyDto>("api/specialties", _form)
+            : ToSpecialtyResult(await Api.PutAsync<Empty>($"api/specialties/{_editingId}", _form));
+
+        _busy = false;
+
+        if (result.Success)
+        {
+            Snackbar.Add("Đã lưu chuyên khoa.", Severity.Success);
+            _showForm = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+
+    // PUT trả về 204 không có dữ liệu: chuyển kết quả sang cùng kiểu để dùng chung đoạn xử lý ở trên
+    private static ApiResult<SpecialtyDto> ToSpecialtyResult(ApiResult<Empty> r) =>
+        r.Success ? ApiResult<SpecialtyDto>.Ok(null, r.Status) : ApiResult<SpecialtyDto>.Fail(r.Status, r.Code, r.Error);
+
+    private async Task DeleteAsync(SpecialtyDto s)
+    {
+        var confirmed = await Dialogs.ShowMessageBox(
+            "Xóa chuyên khoa", $"Xóa chuyên khoa \"{s.Name}\"?", yesText: "Xóa", cancelText: "Hủy");
+        if (confirmed != true) return;
+
+        var result = await Api.DeleteAsync($"api/specialties/{s.Id}");
+        if (result.Success)
+        {
+            Snackbar.Add("Đã xóa chuyên khoa.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            // Ví dụ: "Chuyên khoa đang có bác sĩ, không thể xóa."
+            Snackbar.Add(result.Error, Severity.Error);
+        }
+    }
+}
