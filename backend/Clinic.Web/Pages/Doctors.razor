@@ -65,6 +65,9 @@ else
 }
 
 @code {
+    [Parameter, SupplyParameterFromQuery(Name = "specialtyId")]
+    public int? InitialSpecialtyId { get; set; }
+
     private List<SpecialtyDto> _specialties = new();
     private List<DoctorDto> _doctors = new();
     private int? _specialtyId;
@@ -79,6 +82,7 @@ else
         else
             Snackbar.Add(specialties.Error, Severity.Error);
 
+        _specialtyId = InitialSpecialtyId;
         await LoadDoctorsAsync();
     }
 

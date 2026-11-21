@@ -8,25 +8,35 @@
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
+    <MudAppBar Elevation="0" Class="clinic-appbar">
         <AuthorizeView>
             <Authorized>
                 <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
             </Authorized>
         </AuthorizeView>
-        <MudText Typo="Typo.h6" Class="ml-2">Phòng khám Clinic</MudText>
+
+        <a href="" class="brand">
+            <ClinicLogo />
+            <span class="brand-text d-none d-sm-inline">Phòng khám Clinic</span>
+        </a>
+
         <MudSpacer />
+
         <AuthorizeView>
             <Authorized>
-                <MudText Typo="Typo.body2" Class="mr-3">
+                <MudText Typo="Typo.body2" Class="mr-3 d-none d-sm-flex">
                     @context.User.FindFirst("name")?.Value (@UiFormat.RoleLabel(context.User.FindFirst("role")?.Value))
                 </MudText>
                 <MudButton Color="Color.Inherit" OnClick="LogoutAsync">Đăng xuất</MudButton>
             </Authorized>
             <NotAuthorized>
-                <MudButton Href="doctors" Color="Color.Inherit">Bác sĩ</MudButton>
-                <MudButton Href="login" Color="Color.Inherit">Đăng nhập</MudButton>
-                <MudButton Href="register" Color="Color.Inherit">Đăng ký</MudButton>
+                <nav class="topnav d-none d-md-flex">
+                    <NavLink class="topnav-link" href="" Match="NavLinkMatch.All">Trang chủ</NavLink>
+                    <NavLink class="topnav-link" href="book">Đặt lịch</NavLink>
+                    <NavLink class="topnav-link" href="doctors">Xem bác sĩ</NavLink>
+                </nav>
+                <a class="btn-top btn-top-filled" href="login">Đăng nhập</a>
+                <a class="btn-top btn-top-outline" href="register">Đăng ký</a>
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>
@@ -40,9 +50,26 @@
     </AuthorizeView>
 
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-6">
-            @Body
-        </MudContainer>
+        <AuthorizeView>
+            <Authorized>
+                <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-6">
+                    @Body
+                </MudContainer>
+            </Authorized>
+            <NotAuthorized>
+                @if (IsHome)
+                {
+                    @* Trang chủ cho khách: tràn hết chiều ngang để phần giới thiệu có nền riêng *@
+                    @Body
+                }
+                else
+                {
+                    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-6">
+                        @Body
+                    </MudContainer>
+                }
+            </NotAuthorized>
+        </AuthorizeView>
     </MudMainContent>
 </MudLayout>
 
@@ -57,6 +84,8 @@
             AppbarBackground = "#0F766E"
         }
     };
+
+    private bool IsHome => new Uri(Navigation.Uri).AbsolutePath == "/";
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 

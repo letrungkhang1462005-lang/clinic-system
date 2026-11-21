@@ -1,6 +1,7 @@
 ﻿@page "/"
+@inject ApiClient Api
 
-<PageTitle>Trang chủ</PageTitle>
+<PageTitle>Phòng khám Clinic</PageTitle>
 
 <AuthorizeView>
     <Authorized>
@@ -29,13 +30,143 @@
             <MudButton Href="admin/doctors" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2 mb-2">Quản lý bác sĩ</MudButton>
         </AuthorizeView>
     </Authorized>
+
     <NotAuthorized>
-        <MudPaper Class="pa-8 text-center" Elevation="0">
-            <MudText Typo="Typo.h3" Class="mb-2">Phòng khám Clinic</MudText>
-            <MudText Typo="Typo.h6" Class="mb-6">Đặt lịch khám nhanh chóng, theo dõi hồ sơ và hóa đơn mọi lúc.</MudText>
-            <MudButton Href="login" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Class="mr-2">Đăng nhập</MudButton>
-            <MudButton Href="register" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large" Class="mr-2">Đăng ký</MudButton>
-            <MudButton Href="doctors" Variant="Variant.Text" Color="Color.Primary" Size="Size.Large">Xem bác sĩ</MudButton>
-        </MudPaper>
+        <div class="landing">
+            <section class="hero">
+                <div class="hero-inner">
+                    <div class="hero-text">
+                        <span class="hero-badge">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalHospital" Size="Size.Small" />
+                            Chăm sóc sức khỏe toàn diện
+                        </span>
+                        <h1 class="hero-title">Phòng khám Clinic</h1>
+                        <p class="hero-sub">Đặt lịch khám nhanh chóng, theo dõi hồ sơ và hỏi đáp mọi lúc.</p>
+                        <div class="hero-actions">
+                            <a class="hero-btn hero-btn-primary" href="book">
+                                <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
+                                Đặt lịch khám
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" />
+                            </a>
+                            <a class="hero-btn hero-btn-outline" href="chat">
+                                <MudIcon Icon="@Icons.Material.Filled.Chat" />
+                                Trợ lý ảo
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="hero-visual" aria-hidden="true">
+                        <div class="hero-blob"></div>
+                        <div class="hero-ring r1"></div>
+                        <div class="hero-ring r2"></div>
+                        @* Ảnh bác sĩ: đặt file vào wwwroot/images/hero-doctor.png. Chưa có ảnh thì ảnh tự ẩn đi. *@
+                        <img class="hero-photo-card" src="images/hero-doctor.png" alt="" onerror="this.style.display='none'" />
+                        <div class="hero-tagline">
+                            Vì sức khỏe<br />của bạn
+                            <svg viewBox="0 0 24 24"><path d="M12 21.2C5.6 16.9 2.5 13.4 2.5 9.6 2.5 6.9 4.6 4.8 7.2 4.8c1.9 0 3.6 1 4.8 2.6 1.2-1.6 2.9-2.6 4.8-2.6 2.6 0 4.7 2.1 4.7 4.8 0 3.8-3.1 7.3-9.5 11.6z" /></svg>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="landing-content">
+                <div class="feature-strip">
+                    @foreach (var f in _features)
+                    {
+                        <div class="feature-item">
+                            <div class="feature-icon"><MudIcon Icon="@f.Icon" /></div>
+                            <div>
+                                <div class="feature-title">@f.Title</div>
+                                <div class="feature-text">@f.Text</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (_specialties.Count > 0)
+                {
+                    <h2 class="section-title">Các chuyên khoa nổi bật</h2>
+                    <div class="specialty-row">
+                        @for (var i = 0; i < _specialties.Count; i++)
+                        {
+                            var s = _specialties[i];
+                            <a class="specialty-card" href="@($"doctors?specialtyId={s.Id}")" style="@Tint(i)">
+                                <div class="specialty-icon"><MudIcon Icon="@IconFor(s.Name)" /></div>
+                                <div>
+                                    <div class="specialty-name">@s.Name</div>
+                                    <div class="specialty-caption">@CaptionFor(s)</div>
+                                </div>
+                            </a>
+                        }
+                        <a class="specialty-more" href="doctors">
+                            Xem tất cả
+                            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
     </NotAuthorized>
 </AuthorizeView>
+
+@code {
+    private sealed record Feature(string Icon, string Title, string Text);
+
+    private static readonly Feature[] _features =
+    {
+        new(Icons.Material.Filled.VerifiedUser, "An toàn", "Bảo mật thông tin sức khỏe"),
+        new(Icons.Material.Filled.FlashOn, "Nhanh chóng", "Đặt lịch chỉ vài bước"),
+        new(Icons.Material.Filled.Favorite, "Chuyên nghiệp", "Bác sĩ theo từng chuyên khoa"),
+        new(Icons.Material.Filled.HeadsetMic, "Hỗ trợ", "Trợ lý ảo hỏi đáp mọi lúc")
+    };
+
+    // Màu nền thẻ, màu nền vòng tròn biểu tượng, màu biểu tượng
+    private static readonly (string Bg, string IconBg, string Fg)[] _tints =
+    {
+        ("#E8F6F3", "#CFEDE7", "#0F766E"),
+        ("#FDECEF", "#FAD3DA", "#D93A55"),
+        ("#EAF1FD", "#D3E2FA", "#2F6FDB"),
+        ("#FFF2E5", "#FFE0BF", "#E8870E"),
+        ("#F1ECFD", "#DED2FA", "#6D4BD1")
+    };
+
+    private List<SpecialtyDto> _specialties = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Danh sách chuyên khoa lấy từ cơ sở dữ liệu. API lỗi thì chỉ ẩn mục này, không báo lỗi trên trang chủ.
+        var result = await Api.GetAsync<List<SpecialtyDto>>("api/specialties");
+        if (result.Success)
+            _specialties = (result.Data ?? new()).Take(5).ToList();
+    }
+
+    private static string Tint(int index)
+    {
+        var t = _tints[index % _tints.Length];
+        return $"--bg:{t.Bg};--ic-bg:{t.IconBg};--ic:{t.Fg}";
+    }
+
+    private static string IconFor(string name) => name.Trim().ToLowerInvariant() switch
+    {
+        "nội tổng quát" => Icons.Material.Filled.MedicalServices,
+        "nhi khoa" => Icons.Material.Filled.ChildCare,
+        "tai mũi họng" => Icons.Material.Filled.Hearing,
+        "da liễu" => Icons.Material.Filled.Spa,
+        "răng hàm mặt" => Icons.Material.Filled.TagFaces,
+        "tim mạch" => Icons.Material.Filled.Favorite,
+        "sản phụ khoa" => Icons.Material.Filled.PregnantWoman,
+        _ => Icons.Material.Filled.LocalHospital
+    };
+
+    private static string CaptionFor(SpecialtyDto s) => s.Name.Trim().ToLowerInvariant() switch
+    {
+        "nội tổng quát" => "Khám & điều trị",
+        "nhi khoa" => "Chăm sóc trẻ em",
+        "tai mũi họng" => "Điều trị chuyên sâu",
+        "da liễu" => "Chăm sóc làn da",
+        "răng hàm mặt" => "Chăm sóc răng miệng",
+        "tim mạch" => "Bảo vệ trái tim",
+        "sản phụ khoa" => "Chăm sóc mẹ và bé",
+        _ => string.IsNullOrWhiteSpace(s.Description) ? "Đặt lịch khám" : s.Description!
+    };
+}
