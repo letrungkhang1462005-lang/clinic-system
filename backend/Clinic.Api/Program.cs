@@ -60,6 +60,13 @@ builder.Services.AddScoped<IExaminationService, ExaminationService>();
 builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+var aiBaseUrl = builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:8000/";
+builder.Services.AddHttpClient<IChatService, AiChatService>(client =>
+{
+    // Dấu "/" cuối bắt buộc để địa chỉ tương đối "chat" ghép đúng
+    client.BaseAddress = new Uri(aiBaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 // ---- CORS cho Blazor ----
 var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();

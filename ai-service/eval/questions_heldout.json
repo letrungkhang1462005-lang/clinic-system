@@ -1,0 +1,147 @@
+[
+ {
+  "question": "Cuối tuần phòng khám có mở không?",
+  "mode": "retrieval",
+  "title": "Giờ làm việc"
+ },
+ {
+  "question": "Buổi chiều khám đến mấy giờ?",
+  "mode": "retrieval",
+  "title": "Giờ làm việc"
+ },
+ {
+  "question": "Cho mình xin hotline của lễ tân",
+  "mode": "retrieval",
+  "title": "Địa chỉ và liên hệ"
+ },
+ {
+  "question": "Bác sĩ Lê Minh Cường thu phí bao nhiêu?",
+  "mode": "retrieval",
+  "title": "Phí khám theo bác sĩ"
+ },
+ {
+  "question": "Chụp X-quang ngực hết bao nhiêu?",
+  "mode": "retrieval",
+  "title": "Giá dịch vụ cận lâm sàng"
+ },
+ {
+  "question": "Đo điện tim giá thế nào?",
+  "mode": "retrieval",
+  "title": "Giá dịch vụ cận lâm sàng"
+ },
+ {
+  "question": "Mình đặt lịch trên web như thế nào?",
+  "mode": "retrieval",
+  "title": "Cách đặt lịch trực tuyến"
+ },
+ {
+  "question": "Không có tài khoản có đến khám được không?",
+  "mode": "retrieval",
+  "title": "Đặt lịch trực tiếp tại quầy"
+ },
+ {
+  "question": "Có thể đặt trước một tháng được không?",
+  "mode": "retrieval",
+  "title": "Quy định khi đặt lịch"
+ },
+ {
+  "question": "Nếu bận đột xuất thì hủy hẹn thế nào?",
+  "mode": "retrieval",
+  "title": "Hủy lịch"
+ },
+ {
+  "question": "Dời lịch sang tuần sau được không?",
+  "mode": "retrieval",
+  "title": "Đổi lịch"
+ },
+ {
+  "question": "Lịch của tôi đã được xác nhận chưa xem ở đâu?",
+  "mode": "retrieval",
+  "title": "Trạng thái lịch hẹn"
+ },
+ {
+  "question": "Khám bệnh ở đây gồm những bước gì?",
+  "mode": "retrieval",
+  "title": "Các bước khám bệnh"
+ },
+ {
+  "question": "Nên chuẩn bị gì trước khi đến khám?",
+  "mode": "retrieval",
+  "title": "Cần mang theo gì khi đi khám"
+ },
+ {
+  "question": "Tôi muốn xem lại đơn thuốc lần trước",
+  "mode": "retrieval",
+  "title": "Xem kết quả khám và đơn thuốc"
+ },
+ {
+  "question": "Bác sĩ hẹn tái khám thì đặt lịch ra sao?",
+  "mode": "retrieval",
+  "title": "Tái khám"
+ },
+ {
+  "question": "Có chuyển khoản được không?",
+  "mode": "retrieval",
+  "title": "Hình thức thanh toán"
+ },
+ {
+  "question": "Có dùng bảo hiểm được không?",
+  "mode": "retrieval",
+  "title": "Bảo hiểm y tế"
+ },
+ {
+  "question": "Hóa đơn của tôi xem ở mục nào?",
+  "mode": "retrieval",
+  "title": "Xem hóa đơn"
+ },
+ {
+  "question": "Dữ liệu bệnh án của tôi có bị người khác xem không?",
+  "mode": "retrieval",
+  "title": "Bảo mật thông tin sức khỏe"
+ },
+ {
+  "question": "Phòng khám có khám da liễu không?",
+  "mode": "retrieval",
+  "title": "Các chuyên khoa hiện có"
+ },
+ {
+  "question": "Hôm nay có trận bóng đá nào không?",
+  "mode": "no_answer"
+ },
+ {
+  "question": "Cách nấu phở bò?",
+  "mode": "no_answer"
+ },
+ {
+  "question": "Dịch giúp tôi sang tiếng Anh",
+  "mode": "no_answer"
+ },
+ {
+  "question": "Tôi bị đau ngực và khó thở",
+  "mode": "emergency"
+ },
+ {
+  "question": "Bé nhà tôi nuốt nhầm thuốc",
+  "mode": "emergency"
+ },
+ {
+  "question": "Tôi bị sốt 3 ngày là bệnh gì vậy?",
+  "mode": "medical_advice"
+ },
+ {
+  "question": "Có nên tự uống kháng sinh không, liều lượng thế nào?",
+  "mode": "medical_advice"
+ },
+ {
+  "question": "Em bé nhà tôi bị ho nên khám ở đâu?",
+  "mode": "triage"
+ },
+ {
+  "question": "Tôi bị đau tai thì nên khám khoa nào?",
+  "mode": "triage"
+ },
+ {
+  "question": "Bị mụn trứng cá nên khám khoa gì",
+  "mode": "triage"
+ }
+]

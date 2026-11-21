@@ -1,0 +1,134 @@
+﻿@page "/chat"
+@attribute [Authorize(Roles = RoleNames.Patient)]
+@inject ApiClient Api
+
+<PageTitle>Trợ lý ảo</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">Trợ lý ảo</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+    Hỏi về giờ làm việc, bảng giá, quy trình khám, đặt và hủy lịch, thanh toán.
+    Trợ lý không chẩn đoán bệnh và không kê đơn thuốc.
+</MudText>
+
+<MudPaper Class="pa-3" Style="max-width:820px">
+    @* column-reverse giúp khung chat luôn cuộn xuống tin nhắn mới nhất mà không cần JavaScript *@
+    <div style="height:52vh;overflow-y:auto;display:flex;flex-direction:column-reverse">
+        <div>
+            @foreach (var m in _messages)
+            {
+                if (m.FromUser)
+                {
+                    <div class="d-flex justify-end mb-2">
+                        <MudPaper Class="pa-2 px-3" Elevation="0"
+                                  Style="max-width:80%;background:var(--mud-palette-primary);color:white;white-space:pre-line">@m.Text</MudPaper>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex justify-start mb-2">
+                        <div style="max-width:85%">
+                            @if (IsRisk(m.Mode))
+                            {
+                                <MudAlert Severity="@SeverityFor(m.Mode)" Style="white-space:pre-line">@m.Text</MudAlert>
+                            }
+                            else
+                            {
+                                <MudPaper Class="pa-2 px-3" Outlined="true" Style="white-space:pre-line">@m.Text</MudPaper>
+                            }
+
+                            @foreach (var s in m.Sources)
+                            {
+                                <MudChip T="string" Size="Size.Small" Class="mt-1">Nguồn: @s.Title</MudChip>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_busy)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-2" Style="max-width:200px" />
+            }
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <div class="mb-2">
+        @foreach (var q in _suggestions)
+        {
+            var text = q;
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined"
+                     OnClick="() => SendAsync(text)">@text</MudChip>
+        }
+    </div>
+
+    <MudGrid>
+        <MudItem xs="9" sm="10">
+            <MudTextField @bind-Value="_input" Immediate="true" OnKeyUp="OnKeyUp" MaxLength="500"
+                          Label="Nhập câu hỏi" Variant="Variant.Outlined" Disabled="_busy" />
+        </MudItem>
+        <MudItem xs="3" sm="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Style="height:56px"
+                       Disabled="_busy" OnClick="() => SendAsync(null)">Gửi</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private sealed record ChatMessage(bool FromUser, string Text, string? Mode, List<ChatSourceDto> Sources);
+
+    private static readonly string[] _suggestions =
+    {
+        "Phòng khám mở cửa lúc mấy giờ?",
+        "Phí khám Nhi khoa bao nhiêu?",
+        "Hủy lịch trước bao lâu?",
+        "Con tôi bị sốt nên khám khoa nào?"
+    };
+
+    private readonly string _sessionId = Guid.NewGuid().ToString("N");
+    private readonly List<ChatMessage> _messages = new()
+    {
+        new(false,
+            "Xin chào! Tôi là trợ lý ảo của phòng khám. Bạn cần hỗ trợ gì? Bạn có thể chọn một câu gợi ý bên dưới.",
+            null, new())
+    };
+
+    private string? _input;
+    private bool _busy;
+
+    private static bool IsRisk(string? mode) =>
+        mode is "emergency" or "self_harm" or "medical_advice" or "triage" or "error";
+
+    private static Severity SeverityFor(string? mode) => mode switch
+    {
+        "emergency" or "self_harm" or "error" => Severity.Error,
+        "medical_advice" => Severity.Warning,
+        _ => Severity.Info
+    };
+
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendAsync(null);
+    }
+
+    private async Task SendAsync(string? preset)
+    {
+        var message = (preset ?? _input)?.Trim();
+        if (string.IsNullOrEmpty(message) || _busy) return;
+
+        _messages.Add(new ChatMessage(true, message, null, new()));
+        _input = string.Empty;
+        _busy = true;
+
+        var result = await Api.PostAsync<ChatResponse>(
+            "api/chat", new ChatRequest { Message = message, SessionId = _sessionId });
+
+        if (result.Success && result.Data is not null)
+            _messages.Add(new ChatMessage(false, result.Data.Answer, result.Data.Mode, result.Data.Sources));
+        else
+            _messages.Add(new ChatMessage(false, result.Error, "error", new()));
+
+        _busy = false;
+    }
+}
